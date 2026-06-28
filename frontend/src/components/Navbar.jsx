@@ -1,17 +1,28 @@
-﻿import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useState, useContext } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { CartContext } from '../context/CartContext';
+import { AuthContext } from '../context/AuthContext';
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
-  const toggleMenu = () => {
-    setIsMenuOpen((prev) => !prev);
-  };
+  const { getTotalItems } = useContext(CartContext);
+  const { user, logout, isLoggedIn } = useContext(AuthContext);
+
+  const cartCount = getTotalItems();
 
   const handleSearch = (e) => {
     e.preventDefault();
-    console.log('Searching for:', searchQuery);
+    if (searchQuery.trim()) {
+      navigate(`/shop?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
   };
 
   return (
@@ -30,7 +41,7 @@ function Navbar() {
           </button>
           <input
             type="text"
-            placeholder="Search for jackets, shoes, accessories..."
+            placeholder="Search for jackets, shirts, jeans..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="navbar__search-input"
@@ -41,22 +52,37 @@ function Navbar() {
         </form>
 
         <div className="navbar__actions">
-          <NavLink to="/login" className="navbar__action-link">
-            Hello, Sign in
-          </NavLink>
+          {isLoggedIn ? (
+            <div className="navbar__user-menu">
+              <span className="navbar__user-greeting">
+                Hi, {user?.fullName?.split(' ')[0] || 'User'}
+              </span>
+              <button onClick={handleLogout} className="navbar__logout-btn">
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <NavLink to="/login" className="navbar__action-link">
+              Hello, Sign in
+            </NavLink>
+          )}
+
           <NavLink to="/cart" className="navbar__cart">
             <span className="navbar__cart-icon">🛒</span>
             <span className="navbar__cart-label">Cart</span>
-            <span className="navbar__cart-count">0</span>
+            {cartCount > 0 && (
+              <span className="navbar__cart-count">{cartCount > 99 ? '99+' : cartCount}</span>
+            )}
           </NavLink>
+
           <button
             className="navbar__hamburger"
-            onClick={toggleMenu}
+            onClick={() => setIsMenuOpen((p) => !p)}
             aria-label="Toggle menu"
           >
-            <span className="navbar__hamburger-line"></span>
-            <span className="navbar__hamburger-line"></span>
-            <span className="navbar__hamburger-line"></span>
+            <span className={`navbar__hamburger-line ${isMenuOpen ? 'open' : ''}`}></span>
+            <span className={`navbar__hamburger-line ${isMenuOpen ? 'open' : ''}`}></span>
+            <span className={`navbar__hamburger-line ${isMenuOpen ? 'open' : ''}`}></span>
           </button>
         </div>
       </div>
@@ -71,9 +97,6 @@ function Navbar() {
         <NavLink to="/shop/women" className={({ isActive }) => `navbar__link${isActive ? ' navbar__link--active' : ''}`} onClick={() => setIsMenuOpen(false)}>
           Women
         </NavLink>
-        <NavLink to="/shop/accessories" className={({ isActive }) => `navbar__link${isActive ? ' navbar__link--active' : ''}`} onClick={() => setIsMenuOpen(false)}>
-          Accessories
-        </NavLink>
         <NavLink to="/shop/sale" className={({ isActive }) => `navbar__link${isActive ? ' navbar__link--active' : ''}`} onClick={() => setIsMenuOpen(false)}>
           Sale
         </NavLink>
@@ -86,4 +109,3 @@ function Navbar() {
 }
 
 export default Navbar;
- 

@@ -22,19 +22,20 @@ export function AdminProvider({ children }) {
     setLoading(false);
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (email, password) => {
     try {
-      const response = await adminAPI.login({ username, password });
+      const response = await adminAPI.login({ email, password });
       const apiResponse = response?.data || {};
       const payload = apiResponse.data || {};
       const token = payload.token || payload.accessToken;
       const userPayload = payload.admin || payload.user || payload;
 
-      if (response.status === 200 && (token || userPayload.username || userPayload.id)) {
+      if (response.status === 200 && (token || userPayload.email || userPayload.id)) {
         const adminUser = {
           id: userPayload.id || 1,
-          username: userPayload.username || username,
-          role: userPayload.role || 'admin',
+          email: userPayload.email || email,
+          username: userPayload.username || 'Admin',
+          role: userPayload.role || 'ROLE_ADMIN',
           loginTime: new Date().toISOString(),
         };
 
@@ -52,7 +53,7 @@ export function AdminProvider({ children }) {
       console.error('Login error:', error);
 
       if (error.response?.status === 401) {
-        return { success: false, message: 'Invalid username or password' };
+        return { success: false, message: 'Invalid email or password' };
       } else if (error.response?.status === 403) {
         return { success: false, message: 'Access forbidden' };
       } else if (error.response?.status >= 500) {

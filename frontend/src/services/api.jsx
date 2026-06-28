@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Create axios instance with base configuration
 const API = axios.create({
-  baseURL: "https://rosalva-basiliscan-penney.ngrok-free.dev",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8090", // Base URL for backend API
   timeout: 10000, // 10 seconds timeout
   headers: {
     "Content-Type": "application/json",
@@ -45,7 +45,7 @@ API.interceptors.response.use(
 
       // Redirect to login if not already there
       if (window.location.pathname !== "/admin/login" && window.location.pathname !== "/login") {
-        window.location.href = "/login";
+        window.location.href = window.location.pathname.startsWith("/admin") ? "/admin/login" : "/login";
       }
     }
 
@@ -66,40 +66,40 @@ API.interceptors.response.use(
 // API endpoints for products
 export const productAPI = {
   // Get all products
-  getAll: () => API.get("/products"),
+  getAll: () => API.get("/api/products"),
 
   // Get product by ID
-  getById: (id) => API.get(`/products/${id}`),
+  getById: (id) => API.get(`/api/products/${id}`),
 
   // Create new product
-  create: (productData) => API.post("/products", productData),
+  create: (productData) => API.post("/api/products", productData),
 
   // Update product
-  update: (id, productData) => API.put(`/products/${id}`, productData),
+  update: (id, productData) => API.put(`/api/products/${id}`, productData),
 
   // Delete product
-  delete: (id) => API.delete(`/products/${id}`),
+  delete: (id) => API.delete(`/api/products/${id}`),
 
   // Get products by category
-  getByCategory: (categoryId) => API.get(`/products/category/${categoryId}`),
+  getByCategory: (categoryId) => API.get(`/api/products/category/${categoryId}`),
 };
 
 // API endpoints for categories
 export const categoryAPI = {
   // Get all categories
-  getAll: () => API.get("/categories"),
+  getAll: () => API.get("/api/categories"),
 
   // Get category by ID
-  getById: (id) => API.get(`/categories/${id}`),
+  getById: (id) => API.get(`/api/categories/${id}`),
 
   // Create new category
-  create: (categoryData) => API.post("/categories", categoryData),
+  create: (categoryData) => API.post("/api/categories", categoryData),
 
   // Update category
-  update: (id, categoryData) => API.put(`/categories/${id}`, categoryData),
+  update: (id, categoryData) => API.put(`/api/categories/${id}`, categoryData),
 
   // Delete category
-  delete: (id) => API.delete(`/categories/${id}`),
+  delete: (id) => API.delete(`/api/categories/${id}`),
 };
 
 // API endpoints for admin authentication
@@ -120,10 +120,10 @@ export const adminAPI = {
 // API endpoints for user authentication
 export const authAPI = {
   // User registration
-  register: (userData) => API.post("/auth/register", userData),
+  register: (userData) => API.post("/api/auth/register", userData),
 
   // User login
-  login: (credentials) => API.post("/auth/login", credentials),
+  login: (credentials) => API.post("/api/auth/login", credentials),
 
   // Get user profile
   getProfile: () => API.get("/auth/profile"),
@@ -145,6 +145,42 @@ export const orderAPI = {
 
   // Cancel order
   cancel: (orderId) => API.put(`/orders/${orderId}/cancel`),
+};
+
+// API endpoints for product variants
+export const variantAPI = {
+  // Create new variant
+  create: (variantData) => API.post("/api/variants", variantData),
+
+  // Get variant by ID
+  getById: (id) => API.get(`/api/variants/${id}`),
+
+  // Get all variants for a product
+  getByProductId: (productId) => API.get(`/api/variants/product/${productId}`),
+
+  // Update variant
+  update: (id, variantData) => API.put(`/api/variants/${id}`, variantData),
+
+  // Delete variant
+  delete: (id) => API.delete(`/api/variants/${id}`),
+};
+
+// API endpoints for shopping cart
+export const cartAPI = {
+  // Add item to cart
+  addItem: (cartData) => API.post("/api/cart/add", cartData),
+
+  // Get user's cart
+  getCart: () => API.get("/api/cart"),
+
+  // Update item quantity
+  updateItem: (itemId, quantity) => API.put(`/api/cart/update/${itemId}`, null, { params: { quantity } }),
+
+  // Remove item from cart
+  removeItem: (itemId) => API.delete(`/api/cart/remove/${itemId}`),
+
+  // Clear entire cart
+  clearCart: () => API.delete("/api/cart/clear"),
 };
 
 export default API;

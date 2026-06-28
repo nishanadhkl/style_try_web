@@ -5,7 +5,7 @@ import { AdminContext } from '../../context/AdminContext';
 export default function AdminLogin() {
   const { login } = useContext(AdminContext);
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -14,19 +14,19 @@ export default function AdminLogin() {
     e.preventDefault();
     setError('');
 
-    if (!username || !password) {
-      setError('Username and password are required');
+    if (!email || !password) {
+      setError('Email and password are required');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await login(username, password);
+      const result = await login(email, password);
       if (result.success) {
         navigate('/admin/dashboard');
       } else {
-        setError(result.message || 'Invalid username or password');
+        setError(result.message || 'Invalid email or password');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -48,16 +48,16 @@ export default function AdminLogin() {
 
         <form onSubmit={handleSubmit} className="admin-login-form">
           <div className="admin-form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="email">Email</label>
             <input
-              id="username"
-              type="text"
-              value={username}
+              id="email"
+              type="email"
+              value={email}
               onChange={(e) => {
-                setUsername(e.target.value);
+                setEmail(e.target.value);
                 if (error) setError('');
               }}
-              placeholder="Enter admin username"
+              placeholder="admin@styletry.com"
               className="admin-form-input"
               disabled={isLoading}
             />
@@ -88,10 +88,6 @@ export default function AdminLogin() {
           </button>
         </form>
 
-        <div className="admin-login-hint">
-          <p>Demo Credentials (for testing):</p>
-          <code>Username: admin | Password: admin123</code>
-        </div>
       </div>
     </div>
   );

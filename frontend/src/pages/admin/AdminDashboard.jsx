@@ -1,20 +1,32 @@
 import { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminContext } from '../../context/AdminContext';
-import { adminAPI } from '../../services/api';
+import { productAPI, categoryAPI } from '../../services/api';
 
 export default function AdminDashboard() {
   const { admin, logout } = useContext(AdminContext);
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalProducts: 0,
-    totalOrders: 0,
-    totalUsers: 0,
-    totalRevenue: 0,
+    activeProducts: 0,
+    totalCategories: 0,
+    inventoryValue: 'Rs 0',
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const getResponseList = (responseData) => {
+    if (Array.isArray(responseData)) return responseData;
+    if (Array.isArray(responseData?.data)) return responseData.data;
+    if (Array.isArray(responseData?.content)) return responseData.content;
+    return [];
+  };
+
+  const formatCurrency = (value) =>
+    `Rs ${Number(value || 0).toLocaleString('en-IN', {
+      maximumFractionDigits: 2,
+    })}`;
 
   useEffect(() => {
     loadDashboardData();
@@ -23,55 +35,42 @@ export default function AdminDashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getDashboardStats();
-      setStats(response.data);
+      const [productsResponse, categoriesResponse] = await Promise.all([
+        productAPI.getAll(),
+        categoryAPI.getAll(),
+      ]);
+
+      const products = getResponseList(productsResponse.data);
+      const categories = getResponseList(categoriesResponse.data);
+      const inventoryValue = products.reduce((total, product) => {
+        const price = Number(product.price || 0);
+        const stock = Number(product.stockQuantity || 0);
+        return total + price * stock;
+      }, 0);
+
+      setStats({
+        totalProducts: products.length,
+        activeProducts: products.filter((product) => product.active).length,
+        totalCategories: categories.length,
+        inventoryValue: formatCurrency(inventoryValue),
+      });
+
+      setRecentActivity(
+        products.slice(0, 5).map((product) => ({
+          id: product.id,
+          type: 'product',
+          message: `${product.name} is listed in ${product.categoryName || 'Uncategorized'}`,
+          time: product.active ? 'Active' : 'Inactive',
+        }))
+      );
       setError(null);
     } catch (err) {
-      console.error('Error loading dashboard stats:', err);
-      setError('Failed to load dashboard data');
-      // Fallback to mock data
-      setStats({
-        totalProducts: 156,
-        totalOrders: 42,
-        totalUsers: 289,
-        totalRevenue: 'Rs 28,450',
-      });
+      console.error('Error loading dashboard data:', err);
+      setError('Unable to connect to backend. Make sure the API server is running at http://localhost:8090');
     } finally {
       setLoading(false);
     }
-
-    // Mock recent activity for now
-    setRecentActivity([
-      {
-        id: 1,
-        type: 'product',
-        message: 'New product "Summer Jacket" added',
-        time: '2 hours ago',
-      },
-      {
-        id: 2,
-        type: 'order',
-        message: 'Order #2024 completed',
-        time: '4 hours ago',
-      },
-      {
-        id: 3,
-        type: 'user',
-        message: 'New user registered: john@example.com',
-        time: '6 hours ago',
-      },
-      {
-        id: 4,
-        type: 'product',
-        message: 'Product "Winter Boots" stock updated',
-        time: '8 hours ago',
-      },
-    ]);
   };
-
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
 
   const handleLogout = () => {
     logout();
@@ -80,12 +79,13 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-layout">
-      {/* Admin Header */}
       <header className="admin-header">
         <div className="admin-header-content">
-          <h1 className="admin-title">Admin Dashboard</h1>
+          <div>
+            <h1 className="admin-title">Dashboard</h1>
+            <p className="admin-subtitle">Welcome back, {admin?.username}! 👋</p>
+          </div>
           <div className="admin-header-actions">
-            <span className="admin-user-info">Welcome, {admin?.username}!</span>
             <button onClick={handleLogout} className="admin-logout-button">
               Logout
             </button>
@@ -93,7 +93,6 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      {/* Admin Sidebar */}
       <div className="admin-sidebar">
         <nav className="admin-nav">
           <a href="/admin/dashboard" className="admin-nav-link admin-nav-link--active">
@@ -111,7 +110,6 @@ export default function AdminDashboard() {
         </nav>
       </div>
 
-      {/* Main Content */}
       <main className="admin-main">
         {loading && (
           <div className="admin-loading">
@@ -130,79 +128,87 @@ export default function AdminDashboard() {
 
         {!loading && !error && (
           <>
-            {/* Stats Grid */}
             <div className="admin-stats-grid">
-          <div className="admin-stat-card">
-            <div className="stat-icon">📦</div>
-            <div className="stat-content">
-              <p className="stat-label">Total Products</p>
-              <h3 className="stat-value">{stats.totalProducts}</h3>
-            </div>
-          </div>
-
-          <div className="admin-stat-card">
-            <div className="stat-icon">🛒</div>
-            <div className="stat-content">
-              <p className="stat-label">Total Orders</p>
-              <h3 className="stat-value">{stats.totalOrders}</h3>
-            </div>
-          </div>
-
-          <div className="admin-stat-card">
-            <div className="stat-icon">👥</div>
-            <div className="stat-content">
-              <p className="stat-label">Total Users</p>
-              <h3 className="stat-value">{stats.totalUsers}</h3>
-            </div>
-          </div>
-
-          <div className="admin-stat-card">
-            <div className="stat-icon">💰</div>
-            <div className="stat-content">
-              <p className="stat-label">Total Revenue</p>
-              <h3 className="stat-value">{stats.totalRevenue}</h3>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <section className="admin-activity-section">
-          <h2 className="admin-section-title">Recent Activity</h2>
-          <div className="admin-activity-list">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="activity-item">
-                <div className="activity-type">{activity.type === 'product' ? '📦' : activity.type === 'order' ? '🛒' : '👥'}</div>
-                <div className="activity-content">
-                  <p className="activity-message">{activity.message}</p>
-                  <span className="activity-time">{activity.time}</span>
+              <div className="admin-stat-card">
+                <div className="stat-icon stat-icon--products">📦</div>
+                <div className="stat-content">
+                  <p className="stat-label">Total Products</p>
+                  <h3 className="stat-value">{stats.totalProducts}</h3>
+                  <p className="stat-change">All items in inventory</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
 
-        {/* Quick Actions */}
-        <section className="admin-quick-actions">
-          <h2 className="admin-section-title">Quick Actions</h2>
-          <div className="admin-actions-grid">
-            <button
-              onClick={() => navigate('/admin/products')}
-              className="admin-action-button"
-            >
-              ➕ Add New Product
-            </button>
-            <button className="admin-action-button">
-              📊 View Reports
-            </button>
-            <button className="admin-action-button">
-              📧 Send Newsletter
-            </button>
-            <button className="admin-action-button">
-              ⚙️ Settings
-            </button>
-          </div>
-        </section>
-        </>
+              <div className="admin-stat-card">
+                <div className="stat-icon stat-icon--active">✅</div>
+                <div className="stat-content">
+                  <p className="stat-label">Active Products</p>
+                  <h3 className="stat-value">{stats.activeProducts}</h3>
+                  <p className="stat-change">Available for purchase</p>
+                </div>
+              </div>
+
+              <div className="admin-stat-card">
+                <div className="stat-icon stat-icon--categories">🏷️</div>
+                <div className="stat-content">
+                  <p className="stat-label">Categories</p>
+                  <h3 className="stat-value">{stats.totalCategories}</h3>
+                  <p className="stat-change">Product categories</p>
+                </div>
+              </div>
+
+              <div className="admin-stat-card">
+                <div className="stat-icon stat-icon--inventory">💰</div>
+                <div className="stat-content">
+                  <p className="stat-label">Inventory Value</p>
+                  <h3 className="stat-value">{stats.inventoryValue}</h3>
+                  <p className="stat-change">Total stock value</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-content-grid">
+              <section className="admin-activity-section">
+                <h2 className="admin-section-title">📋 Recent Products</h2>
+                <div className="admin-activity-list">
+                  {recentActivity.length > 0 ? (
+                    recentActivity.map((activity) => (
+                      <div key={activity.id} className="activity-item">
+                        <div className="activity-type">📄</div>
+                        <div className="activity-content">
+                          <p className="activity-message">{activity.message}</p>
+                          <span className="activity-status">{activity.time}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="activity-item">
+                      <div className="activity-content">
+                        <p className="activity-message">No products added yet.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="admin-quick-actions">
+                <h2 className="admin-section-title">⚡ Quick Actions</h2>
+                <div className="admin-actions-grid">
+                  <button
+                    onClick={() => navigate('/admin/products')}
+                    className="admin-action-button admin-action-button--primary"
+                  >
+                    ➕ Add Product
+                  </button>
+                  <button
+                    onClick={loadDashboardData}
+                    className="admin-action-button admin-action-button--secondary"
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+              </section>
+            </div>
+          </>
         )}
       </main>
     </div>
