@@ -26,9 +26,8 @@ export function AdminProvider({ children }) {
     try {
       const response = await adminAPI.login({ email, password });
       const apiResponse = response?.data || {};
-      const payload = apiResponse.data || {};
-      const token = payload.token || payload.accessToken;
-      const userPayload = payload.admin || payload.user || payload;
+      const token = apiResponse.token;
+      const userPayload = apiResponse;
 
       if (response.status === 200 && (token || userPayload.email || userPayload.id)) {
         const adminUser = {

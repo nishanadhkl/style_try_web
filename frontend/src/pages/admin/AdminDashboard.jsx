@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminContext } from '../../context/AdminContext';
-import { productAPI, categoryAPI } from '../../services/api';
+import { productAPI } from '../../services/api';
 
 export default function AdminDashboard() {
   const { admin, logout } = useContext(AdminContext);
@@ -35,13 +35,9 @@ export default function AdminDashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [productsResponse, categoriesResponse] = await Promise.all([
-        productAPI.getAll(),
-        categoryAPI.getAll(),
-      ]);
-
+      const productsResponse = await productAPI.getAll();
       const products = getResponseList(productsResponse.data);
-      const categories = getResponseList(categoriesResponse.data);
+      const categories = [];
       const inventoryValue = products.reduce((total, product) => {
         const price = Number(product.price || 0);
         const stock = Number(product.stockQuantity || 0);
