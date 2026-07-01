@@ -1,13 +1,19 @@
 import { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminContext } from '../../context/AdminContext';
-import { productAPI, categoryAPI, variantAPI } from '../../services/api';
+import { productAPI, variantAPI } from '../../services/api';
+
+const DEFAULT_CATEGORIES = [
+  { id: 1, name: 'Men' },
+  { id: 2, name: 'Women' },
+  { id: 3, name: 'Accessories' },
+];
 
 export default function AdminProducts() {
   const { admin, logout } = useContext(AdminContext);
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [categories] = useState(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -19,12 +25,11 @@ export default function AdminProducts() {
   const [variantLoading, setVariantLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    brand: '',
-    price: '',
     description: '',
-    stockQuantity: '',
-    categoryId: '',
+    price: '',
+    category: '',
     imageUrl: '',
+    stock: '',
     active: true,
   });
   const [variantFormData, setVariantFormData] = useState({
@@ -49,10 +54,8 @@ export default function AdminProducts() {
     return [];
   };
 
-  // Load products and categories on mount
   useEffect(() => {
     loadProducts();
-    loadCategories();
   }, []);
 
   const loadProducts = async () => {
@@ -64,24 +67,9 @@ export default function AdminProducts() {
     } catch (err) {
       console.error('Error loading products:', err);
       setError('Failed to load products. Please try again.');
-      // Fallback to empty array
       setProducts([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadCategories = async () => {
-    try {
-      const response = await categoryAPI.getAll();
-      setCategories(getResponseList(response.data));
-    } catch (err) {
-      console.error('Error loading categories:', err);
-      // Fallback to default categories
-      setCategories([
-        { id: 1, name: 'Men' },
-        { id: 2, name: 'Women' },
-      ]);
     }
   };
 
@@ -93,36 +81,41 @@ export default function AdminProducts() {
     }));
   };
 
-  const normalizePrice = (price) => {
-    if (!price) return '';
-    const trimmed = price.trim();
-    if (trimmed.startsWith('Rs')) {
-      return trimmed.replace(/^Rs\.?\s*/i, 'Rs ');
-    }
-    return `Rs ${trimmed}`;
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      price: '',
+      category: '',
+      imageUrl: '',
+      stock: '',
+      active: true,
+    });
   };
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
 
-    if (
-      !formData.name ||
-      !formData.brand ||
-      !formData.description ||
-      !formData.price ||
-      !formData.stockQuantity ||
-      !formData.categoryId
-    ) {
-      alert('Please fill in all required fields');
+    if (!formData.name || !formData.price || !formData.stock || !formData.category) {
+      alert('Please fill in all required fields (Name, Price, Stock, Category)');
       return;
     }
 
+      console.log('Sending payload:', { 
+      name: formData.name, 
+      category: formData.category, 
+      stock: formData.stock, 
+      price: formData.price 
+    });
     try {
       const productPayload = {
-        ...formData,
-        price: parseFloat(formData.price.replace(/[^\d.]/g, '')),
-        stockQuantity: parseInt(formData.stockQuantity),
-        categoryId: parseInt(formData.categoryId),
+        name: formData.name,
+        description: formData.description,
+        price: parseFloat(String(formData.price).replace(/[^\d.]/g, '')),
+        category: formData.category,
+        imageUrl: formData.imageUrl,
+        stock: parseInt(formData.stock),
+        active: formData.active,
       };
 
       let savedProductId;
@@ -130,23 +123,19 @@ export default function AdminProducts() {
       if (editingId) {
         await productAPI.update(editingId, productPayload);
         savedProductId = editingId;
+        alert('Product updated successfully!');
       } else {
         const response = await productAPI.create(productPayload);
         const createdProduct = response.data?.data || response.data;
         savedProductId = createdProduct.id;
+        alert('Product created! Now add variants below.');
       }
 
       await loadProducts();
-
-      // Keep form open and show variants section for new product
       setEditingId(savedProductId);
       setSelectedProductId(savedProductId);
       loadVariants(savedProductId);
-
-      // Reset form but keep it open
       resetForm();
-
-      alert(editingId ? 'Product updated successfully' : 'Product created! Now add variants below.');
     } catch (err) {
       console.error('Error saving product:', err);
       alert('Failed to save product. Please try again.');
@@ -156,12 +145,11 @@ export default function AdminProducts() {
   const handleEdit = (product) => {
     setFormData({
       name: product.name || '',
-      brand: product.brand || '',
-      price: product.price?.toString() || '',
       description: product.description || '',
-      stockQuantity: product.stockQuantity?.toString() || '',
-      categoryId: product.categoryId?.toString() || '',
+      price: product.price?.toString() || '',
+      category: product.category || '',
       imageUrl: product.imageUrl || '',
+      stock: product.stock?.toString() || '',
       active: product.active ?? true,
     });
     setEditingId(product.id);
@@ -169,17 +157,13 @@ export default function AdminProducts() {
   };
 
   const requestDelete = (product) => {
-    setDeleteConfirm({
-      open: true,
-      productId: product.id,
-      productName: product.name,
-    });
+    setDeleteConfirm({ open: true, productId: product.id, productName: product.name });
   };
 
   const confirmDelete = async () => {
     try {
       await productAPI.delete(deleteConfirm.productId);
-      await loadProducts(); // Reload products after deletion
+      await loadProducts();
       setDeleteConfirm({ open: false, productId: null, productName: '' });
     } catch (err) {
       console.error('Error deleting product:', err);
@@ -204,7 +188,6 @@ export default function AdminProducts() {
     navigate('/');
   };
 
-  // ─── Variant Functions ─────────────────────────────────────────────────
   const loadVariants = async (productId) => {
     try {
       setVariantLoading(true);
@@ -225,34 +208,20 @@ export default function AdminProducts() {
   };
 
   const resetVariantForm = () => {
-    setVariantFormData({
-      size: '',
-      color: '',
-      price: '',
-      stockQuantity: '',
-      sku: '',
-      imageUrl: '',
-      active: true,
-    });
+    setVariantFormData({ size: '', color: '', price: '', stockQuantity: '', sku: '', imageUrl: '', active: true });
   };
 
   const handleVariantInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setVariantFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    setVariantFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleAddVariant = async (e) => {
     e.preventDefault();
-
-    if (!selectedProductId || !variantFormData.size || !variantFormData.color ||
-        !variantFormData.price || !variantFormData.stockQuantity) {
+    if (!selectedProductId || !variantFormData.size || !variantFormData.color || !variantFormData.price || !variantFormData.stockQuantity) {
       alert('Please fill in all required variant fields');
       return;
     }
-
     try {
       const payload = {
         productId: selectedProductId,
@@ -264,7 +233,6 @@ export default function AdminProducts() {
         imageUrl: variantFormData.imageUrl,
         active: variantFormData.active,
       };
-
       if (editingVariantId) {
         await variantAPI.update(editingVariantId, payload);
         alert('Variant updated successfully');
@@ -272,7 +240,6 @@ export default function AdminProducts() {
         await variantAPI.create(payload);
         alert('Variant created successfully');
       }
-
       loadVariants(selectedProductId);
       setShowVariantForm(false);
       setEditingVariantId(null);
@@ -299,65 +266,40 @@ export default function AdminProducts() {
 
   const handleDeleteVariant = async (id) => {
     if (!window.confirm('Are you sure you want to delete this variant?')) return;
-
     try {
       await variantAPI.delete(id);
-      alert('Variant deleted successfully');
       loadVariants(selectedProductId);
     } catch (err) {
-      console.error('Error deleting variant:', err);
       alert('Failed to delete variant');
     }
   };
 
-  const handleVariantFormCancel = () => {
-    setShowVariantForm(false);
-    setEditingVariantId(null);
-    resetVariantForm();
-  };
-
   return (
     <div className="admin-layout">
-      {/* Admin Header */}
       <header className="admin-header">
         <div className="admin-header-content">
           <h1 className="admin-title">Products Management</h1>
           <div className="admin-header-actions">
-            <span className="admin-user-info">Welcome, {admin?.username}!</span>
-            <button
-              onClick={() => setShowForm(true)}
-              className="admin-add-button"
-            >
+            <span className="admin-user-info">Welcome, {admin?.username || 'Admin'}!</span>
+            <button onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }} className="admin-add-button">
               ➕ Add New Product
             </button>
-            <button onClick={handleLogout} className="admin-logout-button">
-              Logout
-            </button>
+            <button onClick={handleLogout} className="admin-logout-button">Logout</button>
           </div>
         </div>
       </header>
 
-      {/* Admin Sidebar */}
       <div className="admin-sidebar">
         <nav className="admin-nav">
-          <a href="/admin/dashboard" className="admin-nav-link">
-            📊 Dashboard
-          </a>
-          <a href="/admin/products" className="admin-nav-link admin-nav-link--active">
-            📦 Products
-          </a>
-          <a href="/admin/orders" className="admin-nav-link">
-            🛒 Orders
-          </a>
-          <a href="/admin/users" className="admin-nav-link">
-            👥 Users
-          </a>
+          <a href="/admin/dashboard" className="admin-nav-link">📊 Dashboard</a>
+          <a href="/admin/products" className="admin-nav-link admin-nav-link--active">📦 Products</a>
+          <a href="/admin/orders" className="admin-nav-link">🛒 Orders</a>
+          <a href="/admin/users" className="admin-nav-link">👥 Users</a>
         </nav>
       </div>
 
-      {/* Main Content */}
       <main className="admin-main">
-        {/* Add/Edit Product Form */}
+        {/* Add/Edit Product Form Modal */}
         {showForm && (
           <div className="admin-form-modal" onClick={handleCancel}>
             <div className="admin-form-card" onClick={(e) => e.stopPropagation()}>
@@ -367,55 +309,14 @@ export default function AdminProducts() {
                 <div className="admin-form-row">
                   <div className="admin-form-group">
                     <label>Product Name *</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name || ''}
-                      onChange={handleInputChange}
-                      placeholder="Enter product name"
-                      className="admin-form-input"
-                    />
+                    <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="Enter product name" className="admin-form-input" />
                   </div>
-
-                  <div className="admin-form-group">
-                    <label>Brand</label>
-                    <input
-                      type="text"
-                      name="brand"
-                      value={formData.brand || ''}
-                      onChange={handleInputChange}
-                      placeholder="Enter brand name"
-                      className="admin-form-input"
-                    />
-                  </div>
-                </div>
-
-                <div className="admin-form-row">
-                  <div className="admin-form-group">
-                    <label>Price *</label>
-                    <input
-                      type="text"
-                      name="price"
-                      value={formData.price || ''}
-                      onChange={handleInputChange}
-                      placeholder="e.g., Rs 2,599"
-                      className="admin-form-input"
-                    />
-                  </div>
-
                   <div className="admin-form-group">
                     <label>Category *</label>
-                    <select
-                      name="categoryId"
-                      value={formData.categoryId || ''}
-                      onChange={handleInputChange}
-                      className="admin-form-input"
-                    >
+                    <select name="category" value={formData.category} onChange={handleInputChange} className="admin-form-input">
                       <option value="">Select Category</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.name}>{cat.name}</option>
                       ))}
                     </select>
                   </div>
@@ -423,39 +324,23 @@ export default function AdminProducts() {
 
                 <div className="admin-form-row">
                   <div className="admin-form-group">
-                    <label>Stock Quantity *</label>
-                    <input
-                      type="number"
-                      name="stockQuantity"
-                      value={formData.stockQuantity || ''}
-                      onChange={handleInputChange}
-                      placeholder="Enter stock quantity"
-                      className="admin-form-input"
-                    />
+                    <label>Price *</label>
+                    <input type="text" name="price" value={formData.price} onChange={handleInputChange} placeholder="e.g., 2599" className="admin-form-input" />
                   </div>
-
                   <div className="admin-form-group">
-                    <label>Image URL</label>
-                    <input
-                      type="text"
-                      name="imageUrl"
-                      value={formData.imageUrl || ''}
-                      onChange={handleInputChange}
-                      placeholder="Enter image URL"
-                      className="admin-form-input"
-                    />
+                    <label>Stock Quantity *</label>
+                    <input type="number" name="stock" value={formData.stock} onChange={handleInputChange} placeholder="Enter stock quantity" className="admin-form-input" />
                   </div>
                 </div>
 
                 <div className="admin-form-row">
-                  <div className="admin-form-group admin-form-checkbox-group">
+                  <div className="admin-form-group">
+                    <label>Image URL</label>
+                    <input type="text" name="imageUrl" value={formData.imageUrl} onChange={handleInputChange} placeholder="https://..." className="admin-form-input" />
+                  </div>
+                  <div className="admin-form-group admin-form-checkbox-group" style={{ justifyContent: 'center' }}>
                     <label>
-                      <input
-                        type="checkbox"
-                        name="active"
-                        checked={formData.active ?? true}
-                        onChange={handleInputChange}
-                      />
+                      <input type="checkbox" name="active" checked={formData.active} onChange={handleInputChange} />
                       {' '}Active
                     </label>
                   </div>
@@ -463,203 +348,85 @@ export default function AdminProducts() {
 
                 <div className="admin-form-group">
                   <label>Description</label>
-                  <textarea
-                    name="description"
-                    value={formData.description || ''}
-                    onChange={handleInputChange}
-                    placeholder="Enter product description"
-                    className="admin-form-textarea"
-                    rows="4"
-                  ></textarea>
+                  <textarea name="description" value={formData.description} onChange={handleInputChange} placeholder="Enter product description" className="admin-form-textarea" rows="3" />
                 </div>
 
                 <div className="admin-form-actions">
                   <button type="submit" className="admin-form-submit-button">
                     {editingId ? 'Update Product' : 'Add Product'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="admin-form-cancel-button"
-                  >
-                    Cancel
-                  </button>
+                  <button type="button" onClick={handleCancel} className="admin-form-cancel-button">Cancel</button>
                 </div>
               </form>
 
-              {/* Variants Section - Only show when editing a product */}
+              {/* Variants Section */}
               {editingId && selectedProductId && (
                 <div className="product-variants-section">
                   <h3 className="variants-section-title">Product Variants</h3>
-
-                  <button
-                    onClick={() => {
-                      resetVariantForm();
-                      setEditingVariantId(null);
-                      setShowVariantForm(true);
-                    }}
-                    className="admin-add-button"
-                    style={{ marginBottom: '1rem' }}
-                  >
+                  <button onClick={() => { resetVariantForm(); setEditingVariantId(null); setShowVariantForm(true); }} className="admin-add-button" style={{ marginBottom: '1rem' }}>
                     ➕ Add Variant
                   </button>
 
-                  {/* Variant Form */}
                   {showVariantForm && (
                     <div className="variant-form-container">
                       <form onSubmit={handleAddVariant} className="admin-variant-form">
                         <div className="admin-form-row">
                           <div className="admin-form-group">
                             <label>Size *</label>
-                            <input
-                              type="text"
-                              name="size"
-                              value={variantFormData.size}
-                              onChange={handleVariantInputChange}
-                              placeholder="e.g., S, M, L, XL"
-                              className="admin-form-input"
-                            />
+                            <input type="text" name="size" value={variantFormData.size} onChange={handleVariantInputChange} placeholder="e.g., S, M, L, XL" className="admin-form-input" />
                           </div>
-
                           <div className="admin-form-group">
                             <label>Color *</label>
-                            <input
-                              type="text"
-                              name="color"
-                              value={variantFormData.color}
-                              onChange={handleVariantInputChange}
-                              placeholder="e.g., Red, Blue, Black"
-                              className="admin-form-input"
-                            />
+                            <input type="text" name="color" value={variantFormData.color} onChange={handleVariantInputChange} placeholder="e.g., Red, Blue" className="admin-form-input" />
                           </div>
                         </div>
-
                         <div className="admin-form-row">
                           <div className="admin-form-group">
                             <label>Price *</label>
-                            <input
-                              type="number"
-                              name="price"
-                              step="0.01"
-                              value={variantFormData.price}
-                              onChange={handleVariantInputChange}
-                              placeholder="e.g., 2599"
-                              className="admin-form-input"
-                            />
+                            <input type="number" name="price" step="0.01" value={variantFormData.price} onChange={handleVariantInputChange} placeholder="e.g., 2599" className="admin-form-input" />
                           </div>
-
                           <div className="admin-form-group">
-                            <label>Stock Quantity *</label>
-                            <input
-                              type="number"
-                              name="stockQuantity"
-                              value={variantFormData.stockQuantity}
-                              onChange={handleVariantInputChange}
-                              placeholder="e.g., 50"
-                              className="admin-form-input"
-                            />
+                            <label>Stock *</label>
+                            <input type="number" name="stockQuantity" value={variantFormData.stockQuantity} onChange={handleVariantInputChange} placeholder="e.g., 50" className="admin-form-input" />
                           </div>
                         </div>
-
                         <div className="admin-form-row">
                           <div className="admin-form-group">
                             <label>SKU</label>
-                            <input
-                              type="text"
-                              name="sku"
-                              value={variantFormData.sku}
-                              onChange={handleVariantInputChange}
-                              placeholder="e.g., PROD-001-S-RED"
-                              className="admin-form-input"
-                            />
+                            <input type="text" name="sku" value={variantFormData.sku} onChange={handleVariantInputChange} placeholder="e.g., PROD-001-S-RED" className="admin-form-input" />
                           </div>
-
                           <div className="admin-form-group">
                             <label>Image URL</label>
-                            <input
-                              type="text"
-                              name="imageUrl"
-                              value={variantFormData.imageUrl}
-                              onChange={handleVariantInputChange}
-                              placeholder="https://..."
-                              className="admin-form-input"
-                            />
+                            <input type="text" name="imageUrl" value={variantFormData.imageUrl} onChange={handleVariantInputChange} placeholder="https://..." className="admin-form-input" />
                           </div>
                         </div>
-
-                        <div className="admin-form-group admin-form-checkbox-group">
-                          <label>
-                            <input
-                              type="checkbox"
-                              name="active"
-                              checked={variantFormData.active}
-                              onChange={handleVariantInputChange}
-                            />
-                            {' '}Active
-                          </label>
-                        </div>
-
                         <div className="admin-form-actions">
-                          <button type="submit" className="admin-form-submit-button">
-                            {editingVariantId ? 'Update Variant' : 'Add Variant'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleVariantFormCancel}
-                            className="admin-form-cancel-button"
-                          >
-                            Cancel
-                          </button>
+                          <button type="submit" className="admin-form-submit-button">{editingVariantId ? 'Update Variant' : 'Add Variant'}</button>
+                          <button type="button" onClick={() => { setShowVariantForm(false); setEditingVariantId(null); resetVariantForm(); }} className="admin-form-cancel-button">Cancel</button>
                         </div>
                       </form>
                     </div>
                   )}
 
-                  {/* Variants List */}
                   {variantLoading && <p>Loading variants...</p>}
-
-                  {!variantLoading && variants.length === 0 && (
-                    <p className="admin-no-data">No variants yet. Add one to get started!</p>
-                  )}
-
+                  {!variantLoading && variants.length === 0 && <p className="admin-no-data">No variants yet. Add one above!</p>}
                   {!variantLoading && variants.length > 0 && (
                     <div className="admin-table-wrapper">
                       <table className="admin-table">
                         <thead>
-                          <tr>
-                            <th>Size</th>
-                            <th>Color</th>
-                            <th>Price</th>
-                            <th>Stock</th>
-                            <th>SKU</th>
-                            <th>Active</th>
-                            <th>Actions</th>
-                          </tr>
+                          <tr><th>Size</th><th>Color</th><th>Price</th><th>Stock</th><th>SKU</th><th>Actions</th></tr>
                         </thead>
                         <tbody>
-                          {variants.map((variant) => (
-                            <tr key={variant.id}>
-                              <td>{variant.size}</td>
-                              <td>{variant.color}</td>
-                              <td>Rs {variant.price}</td>
-                              <td>{variant.stockQuantity}</td>
-                              <td>{variant.sku || '-'}</td>
-                              <td>{variant.active ? '✅' : '❌'}</td>
+                          {variants.map((v) => (
+                            <tr key={v.id}>
+                              <td>{v.size}</td>
+                              <td>{v.color}</td>
+                              <td>Rs {v.price}</td>
+                              <td>{v.stockQuantity}</td>
+                              <td>{v.sku || '-'}</td>
                               <td className="actions-cell">
-                                <button
-                                  onClick={() => handleEditVariant(variant)}
-                                  className="admin-edit-button"
-                                  title="Edit variant"
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteVariant(variant.id)}
-                                  className="admin-delete-button"
-                                  title="Delete variant"
-                                >
-                                  🗑️
-                                </button>
+                                <button onClick={() => handleEditVariant(v)} className="admin-edit-button">✏️</button>
+                                <button onClick={() => handleDeleteVariant(v.id)} className="admin-delete-button">🗑️</button>
                               </td>
                             </tr>
                           ))}
@@ -673,29 +440,15 @@ export default function AdminProducts() {
           </div>
         )}
 
+        {/* Delete Confirmation Modal */}
         {deleteConfirm.open && (
           <div className="admin-confirm-modal" onClick={cancelDelete}>
             <div className="admin-confirm-card" onClick={(e) => e.stopPropagation()}>
-              <h2>Confirm delete</h2>
-              <p>
-                Are you sure you want to permanently delete
-                <strong> {deleteConfirm.productName}</strong>?
-              </p>
+              <h2>Confirm Delete</h2>
+              <p>Are you sure you want to permanently delete <strong>{deleteConfirm.productName}</strong>?</p>
               <div className="admin-confirm-actions">
-                <button
-                  type="button"
-                  onClick={cancelDelete}
-                  className="admin-form-cancel-button"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmDelete}
-                  className="admin-form-submit-button"
-                >
-                  Delete product
-                </button>
+                <button type="button" onClick={cancelDelete} className="admin-form-cancel-button">Cancel</button>
+                <button type="button" onClick={confirmDelete} className="admin-form-submit-button">Delete Product</button>
               </div>
             </div>
           </div>
@@ -703,91 +456,58 @@ export default function AdminProducts() {
 
         {/* Products Table */}
         <section className="admin-products-section">
-          <h2 className="admin-section-title">
-            All Products ({products.length})
-          </h2>
+          <h2 className="admin-section-title">All Products ({products.length})</h2>
 
-          {loading && (
-            <div className="admin-loading">
-              <p>Loading products...</p>
-            </div>
-          )}
-
+          {loading && <p>Loading products...</p>}
           {error && (
-            <div className="admin-error">
+            <div>
               <p>{error}</p>
-              <button onClick={loadProducts} className="admin-retry-button">
-                Retry
-              </button>
+              <button onClick={loadProducts} className="admin-form-submit-button">Retry</button>
             </div>
           )}
 
           {!loading && !error && (
             <div className="admin-table-wrapper">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Product Name</th>
-                  <th>Brand</th>
-                  <th>Price</th>
-                  <th>Category</th>
-                  <th>Stock</th>
-                  <th>Active</th>
-                  <th>Description</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.length > 0 ? (
-                  products.map((product) => (
-                    <tr key={product.id}>
-                      <td className="product-name">{product.name}</td>
-                      <td>{product.brand}</td>
-                      <td>{product.price}</td>
-                      <td>
-                        <span className="admin-badge">
-                          {product.categoryName || categories.find(cat => cat.id === product.categoryId)?.name || 'Unknown'}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={`stock-badge ${
-                            product.stockQuantity < 20 ? 'stock-low' : 'stock-high'
-                          }`}
-                        >
-                          {product.stockQuantity}
-                        </span>
-                      </td>
-                      <td>{product.active ? 'Yes' : 'No'}</td>
-                      <td className="description-cell">{product.description}</td>
-                      <td className="actions-cell">
-                        <button
-                          onClick={() => handleEditProduct(product)}
-                          className="admin-edit-button"
-                          title="Edit product"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => requestDelete(product)}
-                          className="admin-delete-button"
-                          title="Delete product"
-                        >
-                          🗑️
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
+              <table className="admin-table">
+                <thead>
                   <tr>
-                    <td colSpan="8" className="no-data-message">
-                      No products found. Click "Add New Product" to create one.
-                    </td>
+                    <th>Product Name</th>
+                    <th>Price</th>
+                    <th>Category</th>
+                    <th>Stock</th>
+                    <th>Active</th>
+                    <th>Description</th>
+                    <th>Actions</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {products.length > 0 ? (
+                    products.map((product) => (
+                      <tr key={product.id}>
+                        <td className="product-name">{product.name}</td>
+                        <td>Rs {product.price}</td>
+                        <td><span className="admin-badge">{product.category}</span></td>
+                        <td>
+                          <span className={`stock-badge ${product.stock < 20 ? 'stock-low' : 'stock-high'}`}>
+                            {product.stock}
+                          </span>
+                        </td>
+                        <td>{product.active ? '✅' : '❌'}</td>
+                        <td className="description-cell">{product.description}</td>
+                        <td className="actions-cell">
+                          <button onClick={() => handleEditProduct(product)} className="admin-edit-button" title="Edit">✏️</button>
+                          <button onClick={() => requestDelete(product)} className="admin-delete-button" title="Delete">🗑️</button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="no-data-message">No products found. Click "Add New Product" to create one.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </main>
