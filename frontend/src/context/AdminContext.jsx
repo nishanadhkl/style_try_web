@@ -13,7 +13,13 @@ export function AdminProvider({ children }) {
     const storedToken = localStorage.getItem('adminToken');
     if (storedAdmin && storedToken) {
       try {
-        setAdmin(JSON.parse(storedAdmin));
+        const parsedAdmin = JSON.parse(storedAdmin);
+        if (parsedAdmin?.role === 'ADMIN') {
+          setAdmin(parsedAdmin);
+        } else {
+          localStorage.removeItem('admin');
+          localStorage.removeItem('adminToken');
+        }
       } catch (error) {
         localStorage.removeItem('admin');
         localStorage.removeItem('adminToken');
@@ -29,12 +35,12 @@ export function AdminProvider({ children }) {
       const token = apiResponse.token;
       const userPayload = apiResponse;
 
-      if (response.status === 200 && (token || userPayload.email || userPayload.id)) {
+      if (response.status === 200 && token && userPayload.role === 'ADMIN') {
         const adminUser = {
           id: userPayload.id || 1,
           email: userPayload.email || email,
-          username: userPayload.username || 'Admin',
-          role: userPayload.role || 'ROLE_ADMIN',
+          username: userPayload.fullName || userPayload.username || 'Admin',
+          role: userPayload.role,
           loginTime: new Date().toISOString(),
         };
 
@@ -47,7 +53,7 @@ export function AdminProvider({ children }) {
         return { success: true };
       }
 
-      return { success: false, message: apiResponse.message || 'Invalid credentials' };
+      return { success: false, message: apiResponse.message || 'Only admin accounts can access this panel' };
     } catch (error) {
       console.error('Login error:', error);
 
@@ -69,8 +75,8 @@ export function AdminProvider({ children }) {
     localStorage.removeItem('adminToken');
   };
 
-  const isAdminLoggedIn = !!admin;
-  const hasAdminRole = admin?.role === 'admin';
+  const isAdminLoggedIn = !!admin && admin?.role === 'ADMIN' && !!localStorage.getItem('adminToken');
+  const hasAdminRole = admin?.role === 'ADMIN';
 
   return (
     <AdminContext.Provider

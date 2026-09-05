@@ -1,0 +1,16 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build-test/
+
+# Backend
+backend/target/
+backend/src/main/resources/application.properties
+
+# Local/editor files
+.vscode/
+.idea/
+*.iml
+
+# Generated archives
+*.zip

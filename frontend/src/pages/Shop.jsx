@@ -7,7 +7,7 @@ import { AuthContext } from '../context/AuthContext';
 const CATEGORY_LABELS = {
   men: "Men's Fashion",
   women: "Women's Fashion",
-  sale: 'Sale',
+  sale: 'Sale Items',
   new: 'New Arrivals',
 };
 
@@ -30,40 +30,44 @@ export default function Shop() {
     loadProducts();
   }, [category]);
 
-  const loadProducts = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await productAPI.getAll();
-      let data = response.data?.data || response.data || [];
-      if (!Array.isArray(data)) data = [];
-
-      // Filter by category if set
-      if (category && category !== 'sale' && category !== 'new') {
-        data = data.filter(p =>
-          p.category?.name?.toLowerCase() === category ||
-          p.categoryName?.toLowerCase() === category
-        );
-      }
-
-      // Filter by search query
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        data = data.filter(p =>
-          p.name?.toLowerCase().includes(q) ||
-          p.brand?.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q)
-        );
-      }
-
-      setProducts(data);
-    } catch (err) {
-      console.error('Error loading products:', err);
-      setError('Failed to load products. Please try again.');
-    } finally {
-      setLoading(false);
+const loadProducts = async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    let response;
+    if (category === 'sale') {
+      response = await productAPI.getSaleProducts();
+    } else if (category === 'new') {
+      response = await productAPI.getNewArrivals();
+    } else {
+      response = await productAPI.getAll();
     }
-  };
+
+    let data = response.data?.data || response.data || [];
+    if (!Array.isArray(data)) data = [];
+
+    if (category && category !== 'sale' && category !== 'new') {
+      data = data.filter(p =>
+        p.category?.toLowerCase() === category.toLowerCase()
+      );
+    }
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter(p =>
+        p.name?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q)
+      );
+    }
+
+    setProducts(data);
+  } catch (err) {
+    console.error('Error loading products:', err);
+    setError('Failed to load products. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -148,31 +152,71 @@ export default function Shop() {
                 {product.imageUrl ? (
                   <img src={product.imageUrl} alt={product.name} onError={(e) => { e.target.style.display = 'none'; }} />
                 ) : (
-                  <div className="product-placeholder-img">
-                    <span>👗</span>
-                  </div>
+                  <div className="product-placeholder-img"><span>👗</span></div>
                 )}
                 {product.stock === 0 && <div className="out-of-stock-badge">Out of Stock</div>}
+                {product.discountPercent > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '10px', left: '10px',
+                    background: '#dc2626', color: 'white',
+                    padding: '4px 8px', borderRadius: '4px',
+                    fontSize: '0.75rem', fontWeight: '700'
+                  }}>SALE -{product.discountPercent}%</div>
+                )}
+                {product.isNewArrival && (
+                  <div style={{
+                    position: 'absolute', top: '10px', right: '10px',
+                    background: '#10b981', color: 'white',
+                    padding: '4px 8px', borderRadius: '4px',
+                    fontSize: '0.75rem', fontWeight: '700'
+                  }}>NEW</div>
+                )}
               </div>
 
               <div className="product-card-body">
                 <div className="product-card-category">
-                  {product.category?.name || product.categoryName || 'Fashion'}
+                  {product.category || 'Fashion'}
                 </div>
                 <h3 className="product-card-name">{product.name}</h3>
                 {product.brand && <p className="product-card-brand">{product.brand}</p>}
                 <p className="product-card-desc">{product.description?.substring(0, 80)}{product.description?.length > 80 ? '...' : ''}</p>
 
                 <div className="product-card-footer">
-                  <span className="product-card-price">
-                    Rs {parseFloat(product.price || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  <div>
+                  {product.discountPercent > 0 ? (
+                  <>
+                  <span style={{
+                  textDecoration: 'line-through',
+                  color: '#94a3b8',
+                  fontSize: '0.85rem',
+                  marginRight: '0.4rem'
+                  }}>
+                  Rs {parseFloat(product.price).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </span>
+                  <span className="product-card-price" style={{ color: '#dc2626' }}>
+                  Rs {Math.round(product.price * (1 - product.discountPercent / 100)).toLocaleString('en-IN')}
+                  </span>
+                  <span style={{
+                  display: 'inline-block', marginLeft: '0.4rem',
+                  background: '#dc2626', color: 'white',
+                  fontSize: '0.7rem', fontWeight: '700',
+                  padding: '2px 6px', borderRadius: '4px'
+                  }}>
+                  -{product.discountPercent}%
+                  </span>
+                  </>
+                  ) : (
+                  <span className="product-card-price">
+                  Rs {parseFloat(product.price || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </span>
+                  )}
+                  </div>
                   <button
                     className="btn-add-to-cart"
-                    onClick={() => handleAddToCart(product)}
-                    disabled={addingId === product.id || product.stock === 0}
-                  >
-                    {addingId === product.id ? '...' : product.stock === 0 ? 'Sold Out' : '+ Cart'}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/product/${product.id}`); }}
+                    disabled={product.stock === 0}
+                    >
+                    {product.stock === 0 ? 'Sold Out' : 'View Product'}
                   </button>
                 </div>
               </div>

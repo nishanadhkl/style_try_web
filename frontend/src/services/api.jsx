@@ -1,8 +1,10 @@
 import axios from "axios";
 
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8090";
+
 // Create axios instance with base configuration
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8090", // Base URL for backend API
+  baseURL: API_BASE_URL, // Base URL for backend API
   timeout: 10000, // 10 seconds timeout
   headers: {
     "Content-Type": "application/json",
@@ -12,16 +14,24 @@ const API = axios.create({
 // Request interceptor to add auth token
 API.interceptors.request.use(
   (config) => {
-    // Add admin token if available
     const adminToken = localStorage.getItem("adminToken");
-    if (adminToken) {
-      config.headers.Authorization = `Bearer ${adminToken}`;
+    const userToken = localStorage.getItem("userToken");
+    const adminOnlyPaths = ["/api/admin", "/api/orders/admin", "/api/users"];
+    const isAdminRoute = adminOnlyPaths.some((path) => config.url?.startsWith(path));
+    const isAdminProductWrite =
+      ["/api/products", "/api/variants"].some((path) => config.url?.startsWith(path)) &&
+      ["post", "put", "delete"].includes(config.method?.toLowerCase());
+
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
     }
 
-    // Add user token if available (for customer routes)
-    const userToken = localStorage.getItem("userToken");
-    if (userToken && !adminToken) {
+    if ((isAdminRoute || isAdminProductWrite) && adminToken) {
+      config.headers.Authorization = `Bearer ${adminToken}`;
+    } else if (userToken) {
       config.headers.Authorization = `Bearer ${userToken}`;
+    } else if (adminToken) {
+      config.headers.Authorization = `Bearer ${adminToken}`;
     }
 
     return config;
@@ -65,23 +75,14 @@ API.interceptors.response.use(
 
 // API endpoints for products
 export const productAPI = {
-  // Get all products
   getAll: () => API.get("/api/products"),
-
-  // Get product by ID
   getById: (id) => API.get(`/api/products/${id}`),
-
-  // Create new product
   create: (productData) => API.post("/api/products", productData),
-
-  // Update product
   update: (id, productData) => API.put(`/api/products/${id}`, productData),
-
-  // Delete product
   delete: (id) => API.delete(`/api/products/${id}`),
-
-  // Get products by category
-  getByCategory: (categoryId) => API.get(`/api/products/category/${categoryId}`),
+  getByCategory: (category) => API.get(`/api/products/category/${category}`),
+  getSaleProducts: () => API.get("/api/products/sale"),
+  getNewArrivals: () => API.get("/api/products/new-arrivals"),
 };
 
 // API endpoints for categories
@@ -104,17 +105,11 @@ export const categoryAPI = {
 
 // API endpoints for admin authentication
 export const adminAPI = {
-  // Admin login
   login: (credentials) => API.post("/api/auth/login", credentials),
-
-  // Get admin dashboard stats
-  getDashboardStats: () => API.get("/admin/dashboard/stats"),
-
-  // Get all orders (admin)
-  getAllOrders: () => API.get("/admin/orders"),
-
-  // Update order status
-  updateOrderStatus: (orderId, status) => API.put(`/admin/orders/${orderId}/status`, { status }),
+  getDashboardStats: () => API.get("/api/admin/dashboard/stats"),
+  getAllOrders: () => API.get("/api/orders/admin/all"),
+  updateOrderStatus: (orderId, status) => API.put(`/api/orders/admin/${orderId}/status`, null, { params: { status } }),
+  getAllUsers: () => API.get("/api/users"),
 };
 
 // API endpoints for user authentication
@@ -135,16 +130,16 @@ export const authAPI = {
 // API endpoints for orders
 export const orderAPI = {
   // Get user's orders
-  getUserOrders: () => API.get("/orders"),
+  getUserOrders: () => API.get("/api/orders"),
 
   // Get order by ID
-  getById: (id) => API.get(`/orders/${id}`),
+  getById: (id) => API.get(`/api/orders/${id}`),
 
   // Create new order
-  create: (orderData) => API.post("/orders", orderData),
+  create: (orderData) => API.post("/api/orders", orderData),
 
   // Cancel order
-  cancel: (orderId) => API.put(`/orders/${orderId}/cancel`),
+  cancel: (orderId) => API.put(`/api/orders/${orderId}/cancel`),
 };
 
 // API endpoints for product variants

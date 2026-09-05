@@ -57,6 +57,9 @@ function Navbar() {
               <span className="navbar__user-greeting">
                 Hi, {user?.fullName?.split(' ')[0] || 'User'}
               </span>
+              <NavLink to="/orders" className="navbar__action-link">
+                My Orders
+              </NavLink>
               <button onClick={handleLogout} className="navbar__logout-btn">
                 Sign out
               </button>

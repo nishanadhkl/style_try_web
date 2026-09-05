@@ -6,7 +6,6 @@ import { productAPI, variantAPI } from '../../services/api';
 const DEFAULT_CATEGORIES = [
   { id: 1, name: 'Men' },
   { id: 2, name: 'Women' },
-  { id: 3, name: 'Accessories' },
 ];
 
 export default function AdminProducts() {
@@ -23,29 +22,23 @@ export default function AdminProducts() {
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [editingVariantId, setEditingVariantId] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [deleteVariantConfirm, setDeleteVariantConfirm] = useState({ open: false, variantId: null });
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: '',
-    category: '',
-    imageUrl: '',
-    stock: '',
-    active: true,
+    name: '', description: '', price: '', category: '', imageUrl: '',
+    stock: '', active: true, discountPercent: 0, isNewArrival: false,
   });
   const [variantFormData, setVariantFormData] = useState({
-    size: '',
-    color: '',
-    price: '',
-    stockQuantity: '',
-    sku: '',
-    imageUrl: '',
-    active: true,
+    size: '', color: '', price: '', stockQuantity: '', sku: '', imageUrl: '', active: true,
   });
   const [deleteConfirm, setDeleteConfirm] = useState({
-    open: false,
-    productId: null,
-    productName: '',
+    open: false, productId: null, productName: '',
   });
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const getResponseList = (responseData) => {
     if (Array.isArray(responseData)) return responseData;
@@ -54,9 +47,7 @@ export default function AdminProducts() {
     return [];
   };
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
+  useEffect(() => { loadProducts(); }, []);
 
   const loadProducts = async () => {
     try {
@@ -65,7 +56,6 @@ export default function AdminProducts() {
       setProducts(getResponseList(response.data));
       setError(null);
     } catch (err) {
-      console.error('Error loading products:', err);
       setError('Failed to load products. Please try again.');
       setProducts([]);
     } finally {
@@ -75,38 +65,22 @@ export default function AdminProducts() {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      description: '',
-      price: '',
-      category: '',
-      imageUrl: '',
-      stock: '',
-      active: true,
+      name: '', description: '', price: '', category: '', imageUrl: '',
+      stock: '', active: true, discountPercent: 0, isNewArrival: false,
     });
   };
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
-
     if (!formData.name || !formData.price || !formData.stock || !formData.category) {
-      alert('Please fill in all required fields (Name, Price, Stock, Category)');
+      showToast('Please fill in all required fields (Name, Price, Stock, Category)', 'error');
       return;
     }
-
-      console.log('Sending payload:', { 
-      name: formData.name, 
-      category: formData.category, 
-      stock: formData.stock, 
-      price: formData.price 
-    });
     try {
       const productPayload = {
         name: formData.name,
@@ -116,29 +90,28 @@ export default function AdminProducts() {
         imageUrl: formData.imageUrl,
         stock: parseInt(formData.stock),
         active: formData.active,
+        discountPercent: parseInt(formData.discountPercent) || 0,
+        isNewArrival: formData.isNewArrival,
       };
-
       let savedProductId;
-
       if (editingId) {
         await productAPI.update(editingId, productPayload);
         savedProductId = editingId;
-        alert('Product updated successfully!');
+        showToast('Product updated successfully!');
       } else {
         const response = await productAPI.create(productPayload);
         const createdProduct = response.data?.data || response.data;
         savedProductId = createdProduct.id;
-        alert('Product created! Now add variants below.');
+        showToast('Product created! Now add variants below.');
       }
-
       await loadProducts();
       setEditingId(savedProductId);
       setSelectedProductId(savedProductId);
       loadVariants(savedProductId);
       resetForm();
     } catch (err) {
-      console.error('Error saving product:', err);
-      alert('Failed to save product. Please try again.');
+      const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Please try again.';
+      showToast(`Failed to save product: ${message}`, 'error');
     }
   };
 
@@ -151,6 +124,8 @@ export default function AdminProducts() {
       imageUrl: product.imageUrl || '',
       stock: product.stock?.toString() || '',
       active: product.active ?? true,
+      discountPercent: product.discountPercent || 0,
+      isNewArrival: product.isNewArrival || false,
     });
     setEditingId(product.id);
     setShowForm(true);
@@ -165,9 +140,9 @@ export default function AdminProducts() {
       await productAPI.delete(deleteConfirm.productId);
       await loadProducts();
       setDeleteConfirm({ open: false, productId: null, productName: '' });
+      showToast('Product deleted successfully');
     } catch (err) {
-      console.error('Error deleting product:', err);
-      alert('Failed to delete product. Please try again.');
+      showToast('Failed to delete product', 'error');
     }
   };
 
@@ -183,10 +158,7 @@ export default function AdminProducts() {
     resetForm();
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
+  const handleLogout = () => { logout(); navigate('/'); };
 
   const loadVariants = async (productId) => {
     try {
@@ -194,7 +166,6 @@ export default function AdminProducts() {
       const response = await variantAPI.getByProductId(productId);
       setVariants(getResponseList(response.data));
     } catch (err) {
-      console.error('Error loading variants:', err);
       setVariants([]);
     } finally {
       setVariantLoading(false);
@@ -219,7 +190,7 @@ export default function AdminProducts() {
   const handleAddVariant = async (e) => {
     e.preventDefault();
     if (!selectedProductId || !variantFormData.size || !variantFormData.color || !variantFormData.price || !variantFormData.stockQuantity) {
-      alert('Please fill in all required variant fields');
+      showToast('Please fill in all required variant fields', 'error');
       return;
     }
     try {
@@ -235,47 +206,61 @@ export default function AdminProducts() {
       };
       if (editingVariantId) {
         await variantAPI.update(editingVariantId, payload);
-        alert('Variant updated successfully');
+        showToast('Variant updated successfully');
       } else {
         await variantAPI.create(payload);
-        alert('Variant created successfully');
+        showToast('Variant added successfully');
       }
       loadVariants(selectedProductId);
       setShowVariantForm(false);
       setEditingVariantId(null);
       resetVariantForm();
     } catch (err) {
-      console.error('Error saving variant:', err);
-      alert('Failed to save variant. Please try again.');
+      const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Please try again.';
+      showToast(`Failed to save variant: ${message}`, 'error');
     }
   };
 
   const handleEditVariant = (variant) => {
     setVariantFormData({
-      size: variant.size,
-      color: variant.color,
-      price: variant.price.toString(),
-      stockQuantity: variant.stockQuantity.toString(),
-      sku: variant.sku || '',
-      imageUrl: variant.imageUrl || '',
-      active: variant.active,
+      size: variant.size, color: variant.color,
+      price: variant.price.toString(), stockQuantity: variant.stockQuantity.toString(),
+      sku: variant.sku || '', imageUrl: variant.imageUrl || '', active: variant.active,
     });
     setEditingVariantId(variant.id);
     setShowVariantForm(true);
   };
 
-  const handleDeleteVariant = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this variant?')) return;
+  const requestDeleteVariant = (id) => {
+    setDeleteVariantConfirm({ open: true, variantId: id });
+  };
+
+  const confirmDeleteVariant = async () => {
     try {
-      await variantAPI.delete(id);
+      await variantAPI.delete(deleteVariantConfirm.variantId);
+      setDeleteVariantConfirm({ open: false, variantId: null });
       loadVariants(selectedProductId);
+      showToast('Variant deleted');
     } catch (err) {
-      alert('Failed to delete variant');
+      showToast('Failed to delete variant', 'error');
     }
   };
 
   return (
     <div className="admin-layout">
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
+          padding: '1rem 1.5rem',
+          background: toast.type === 'error' ? '#dc2626' : '#10b981',
+          color: 'white', borderRadius: '0.5rem',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          fontWeight: '600', fontSize: '0.95rem'
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
       <header className="admin-header">
         <div className="admin-header-content">
           <h1 className="admin-title">Products Management</h1>
@@ -299,12 +284,11 @@ export default function AdminProducts() {
       </div>
 
       <main className="admin-main">
-        {/* Add/Edit Product Form Modal */}
+        {/* Product Form Modal */}
         {showForm && (
           <div className="admin-form-modal" onClick={handleCancel}>
             <div className="admin-form-card" onClick={(e) => e.stopPropagation()}>
               <h2>{editingId ? 'Edit Product' : 'Add New Product'}</h2>
-
               <form onSubmit={handleAddProduct} className="admin-product-form">
                 <div className="admin-form-row">
                   <div className="admin-form-group">
@@ -321,7 +305,6 @@ export default function AdminProducts() {
                     </select>
                   </div>
                 </div>
-
                 <div className="admin-form-row">
                   <div className="admin-form-group">
                     <label>Price *</label>
@@ -332,25 +315,34 @@ export default function AdminProducts() {
                     <input type="number" name="stock" value={formData.stock} onChange={handleInputChange} placeholder="Enter stock quantity" className="admin-form-input" />
                   </div>
                 </div>
-
                 <div className="admin-form-row">
                   <div className="admin-form-group">
                     <label>Image URL</label>
                     <input type="text" name="imageUrl" value={formData.imageUrl} onChange={handleInputChange} placeholder="https://..." className="admin-form-input" />
                   </div>
-                  <div className="admin-form-group admin-form-checkbox-group" style={{ justifyContent: 'center' }}>
+                  <div className="admin-form-group">
+                    <label>Discount % <span style={{color:'#64748b', fontWeight:'400'}}>(0 = no discount)</span></label>
+                    <input type="number" name="discountPercent" min="0" max="90" value={formData.discountPercent} onChange={handleInputChange} placeholder="e.g., 20" className="admin-form-input" />
+                  </div>
+                </div>
+                <div className="admin-form-row">
+                  <div className="admin-form-group admin-form-checkbox-group">
                     <label>
                       <input type="checkbox" name="active" checked={formData.active} onChange={handleInputChange} />
                       {' '}Active
                     </label>
                   </div>
+                  <div className="admin-form-group admin-form-checkbox-group">
+                    <label>
+                      <input type="checkbox" name="isNewArrival" checked={formData.isNewArrival} onChange={handleInputChange} />
+                      {' '}New Arrival
+                    </label>
+                  </div>
                 </div>
-
                 <div className="admin-form-group">
                   <label>Description</label>
                   <textarea name="description" value={formData.description} onChange={handleInputChange} placeholder="Enter product description" className="admin-form-textarea" rows="3" />
                 </div>
-
                 <div className="admin-form-actions">
                   <button type="submit" className="admin-form-submit-button">
                     {editingId ? 'Update Product' : 'Add Product'}
@@ -366,7 +358,6 @@ export default function AdminProducts() {
                   <button onClick={() => { resetVariantForm(); setEditingVariantId(null); setShowVariantForm(true); }} className="admin-add-button" style={{ marginBottom: '1rem' }}>
                     ➕ Add Variant
                   </button>
-
                   {showVariantForm && (
                     <div className="variant-form-container">
                       <form onSubmit={handleAddVariant} className="admin-variant-form">
@@ -407,7 +398,6 @@ export default function AdminProducts() {
                       </form>
                     </div>
                   )}
-
                   {variantLoading && <p>Loading variants...</p>}
                   {!variantLoading && variants.length === 0 && <p className="admin-no-data">No variants yet. Add one above!</p>}
                   {!variantLoading && variants.length > 0 && (
@@ -419,14 +409,12 @@ export default function AdminProducts() {
                         <tbody>
                           {variants.map((v) => (
                             <tr key={v.id}>
-                              <td>{v.size}</td>
-                              <td>{v.color}</td>
-                              <td>Rs {v.price}</td>
-                              <td>{v.stockQuantity}</td>
+                              <td>{v.size}</td><td>{v.color}</td>
+                              <td>Rs {v.price}</td><td>{v.stockQuantity}</td>
                               <td>{v.sku || '-'}</td>
                               <td className="actions-cell">
                                 <button onClick={() => handleEditVariant(v)} className="admin-edit-button">✏️</button>
-                                <button onClick={() => handleDeleteVariant(v.id)} className="admin-delete-button">🗑️</button>
+                                <button onClick={() => requestDeleteVariant(v.id)} className="admin-delete-button">🗑️</button>
                               </td>
                             </tr>
                           ))}
@@ -440,7 +428,7 @@ export default function AdminProducts() {
           </div>
         )}
 
-        {/* Delete Confirmation Modal */}
+        {/* Delete Product Confirmation Modal */}
         {deleteConfirm.open && (
           <div className="admin-confirm-modal" onClick={cancelDelete}>
             <div className="admin-confirm-card" onClick={(e) => e.stopPropagation()}>
@@ -454,56 +442,59 @@ export default function AdminProducts() {
           </div>
         )}
 
+        {/* Delete Variant Confirmation Modal */}
+        {deleteVariantConfirm.open && (
+          <div className="admin-confirm-modal" onClick={() => setDeleteVariantConfirm({ open: false, variantId: null })}>
+            <div className="admin-confirm-card" onClick={(e) => e.stopPropagation()}>
+              <h2>Delete Variant</h2>
+              <p>Are you sure you want to delete this variant?</p>
+              <div className="admin-confirm-actions">
+                <button type="button" onClick={() => setDeleteVariantConfirm({ open: false, variantId: null })} className="admin-form-cancel-button">Cancel</button>
+                <button type="button" onClick={confirmDeleteVariant} className="admin-form-submit-button">Delete Variant</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Products Table */}
         <section className="admin-products-section">
           <h2 className="admin-section-title">All Products ({products.length})</h2>
-
           {loading && <p>Loading products...</p>}
-          {error && (
-            <div>
-              <p>{error}</p>
-              <button onClick={loadProducts} className="admin-form-submit-button">Retry</button>
-            </div>
-          )}
-
+          {error && <div><p>{error}</p><button onClick={loadProducts} className="admin-form-submit-button">Retry</button></div>}
           {!loading && !error && (
             <div className="admin-table-wrapper">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Product Name</th>
-                    <th>Price</th>
-                    <th>Category</th>
-                    <th>Stock</th>
-                    <th>Active</th>
-                    <th>Description</th>
-                    <th>Actions</th>
+                    <th>Product Name</th><th>Price</th><th>Category</th>
+                    <th>Discount</th><th>New Arrival</th><th>Stock</th><th>Active</th><th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {products.length > 0 ? (
-                    products.map((product) => (
-                      <tr key={product.id}>
-                        <td className="product-name">{product.name}</td>
-                        <td>Rs {product.price}</td>
-                        <td><span className="admin-badge">{product.category}</span></td>
-                        <td>
-                          <span className={`stock-badge ${product.stock < 20 ? 'stock-low' : 'stock-high'}`}>
-                            {product.stock}
+                  {products.length > 0 ? products.map((product) => (
+                    <tr key={product.id}>
+                      <td className="product-name">{product.name}</td>
+                      <td>Rs {product.price}</td>
+                      <td><span className="admin-badge">{product.category}</span></td>
+                      <td>
+                        {product.discountPercent > 0 ? (
+                          <span style={{ background: '#fee2e2', color: '#dc2626', padding: '3px 8px', borderRadius: '4px', fontWeight: '700', fontSize: '0.8rem' }}>
+                            -{product.discountPercent}%
                           </span>
-                        </td>
-                        <td>{product.active ? '✅' : '❌'}</td>
-                        <td className="description-cell">{product.description}</td>
-                        <td className="actions-cell">
-                          <button onClick={() => handleEditProduct(product)} className="admin-edit-button" title="Edit">✏️</button>
-                          <button onClick={() => requestDelete(product)} className="admin-delete-button" title="Delete">🗑️</button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="7" className="no-data-message">No products found. Click "Add New Product" to create one.</td>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>None</span>
+                        )}
+                      </td>
+                      <td>{product.isNewArrival ? <span style={{ color: '#10b981', fontWeight: '700' }}>✅ NEW</span> : '—'}</td>
+                      <td><span className={`stock-badge ${product.stock < 20 ? 'stock-low' : 'stock-high'}`}>{product.stock}</span></td>
+                      <td>{product.active ? '✅' : '❌'}</td>
+                      <td className="actions-cell">
+                        <button onClick={() => handleEditProduct(product)} className="admin-edit-button">✏️</button>
+                        <button onClick={() => requestDelete(product)} className="admin-delete-button">🗑️</button>
+                      </td>
                     </tr>
+                  )) : (
+                    <tr><td colSpan="8" className="no-data-message">No products found.</td></tr>
                   )}
                 </tbody>
               </table>

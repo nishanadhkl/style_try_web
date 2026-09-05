@@ -12,11 +12,13 @@ import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminOrders from "./pages/admin/AdminOrders";
+import AdminUsers from "./pages/admin/AdminUsers";
 import Cart from "./pages/Cart";
 import Shop from "./pages/Shop";
 import ProductDetail from "./pages/ProductDetail";
 import Checkout from "./pages/Checkout";
 import OrderConfirmation from "./pages/OrderConfirmation";
+import Orders from "./pages/Orders";
 import TryOn from "./pages/TryOn";
 
 function AppContent() {
@@ -41,6 +43,7 @@ function AppContent() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/order-confirmation" element={<OrderConfirmation />} />
           <Route path="/try-on" element={<TryOn />} />
+          <Route path="/orders" element={<Orders />} />
 
           {/* Admin Routes */}
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -65,6 +68,14 @@ function AppContent() {
             element={
               <ProtectedAdminRoute>
                 <AdminOrders />
+              </ProtectedAdminRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedAdminRoute>
+                <AdminUsers />
               </ProtectedAdminRoute>
             }
           />

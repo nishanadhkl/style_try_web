@@ -3,13 +3,13 @@ import { Navigate } from 'react-router-dom';
 import { AdminContext } from '../context/AdminContext';
 
 export function ProtectedAdminRoute({ children }) {
-  const { isAdminLoggedIn, loading } = useContext(AdminContext);
+  const { isAdminLoggedIn, hasAdminRole, loading } = useContext(AdminContext);
 
   if (loading) {
     return <div className="loading-spinner">Loading...</div>;
   }
 
-  if (!isAdminLoggedIn) {
+  if (!isAdminLoggedIn || !hasAdminRole) {
     return <Navigate to="/admin/login" replace />;
   }
 

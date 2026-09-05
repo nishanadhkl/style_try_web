@@ -8,9 +8,11 @@ export function CartProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    loadCart();
-  }, []);
+useEffect(() => {
+  const token = localStorage.getItem('userToken');
+  if (token) loadCart();
+  else setLoading(false);
+}, []);
 
   const loadCart = async () => {
     const token = localStorage.getItem('userToken');

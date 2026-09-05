@@ -1,8 +1,9 @@
 import { useState, useContext, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { productAPI } from '../services/api';
+import { productAPI , variantAPI} from '../services/api';
 import { CartContext } from '../context/CartContext';
 import { AuthContext } from '../context/AuthContext';
+
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -21,23 +22,27 @@ export default function ProductDetail() {
     loadProduct();
   }, [id]);
 
-  const loadProduct = async () => {
-    try {
-      setLoading(true);
-      const response = await productAPI.getById(id);
-      const data = response.data?.data || response.data;
-      setProduct(data);
-      // Select first variant by default
-      if (data?.variants?.length > 0) {
-        setSelectedVariant(data.variants[0]);
-      }
-    } catch (err) {
-      console.error('Error loading product:', err);
-      showToast('Failed to load product', 'error');
-    } finally {
-      setLoading(false);
+const loadProduct = async () => {
+  try {
+    setLoading(true);
+    const [productResponse, variantsResponse] = await Promise.all([
+      productAPI.getById(id),
+      variantAPI.getByProductId(id),
+    ]);
+    const data = productResponse.data?.data || productResponse.data;
+    const variants = variantsResponse.data?.data || variantsResponse.data || [];
+    const productWithVariants = { ...data, variants: Array.isArray(variants) ? variants : [] };
+    setProduct(productWithVariants);
+    if (productWithVariants.variants.length > 0) {
+      setSelectedVariant(productWithVariants.variants[0]);
     }
-  };
+  } catch (err) {
+    console.error('Error loading product:', err);
+    showToast('Failed to load product', 'error');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -46,8 +51,11 @@ export default function ProductDetail() {
 
   const handleAddToCart = async () => {
     if (!isLoggedIn) {
-      navigate('/login', { state: { from: { pathname: `/product/${id}` } } });
-      return;
+    showToast('Please login to add items to cart', 'error');
+    setTimeout(() => {
+    navigate('/login', { state: { from: { pathname: `/product/${id}` } } });
+    }, 1500);
+    return;
     }
     if (!selectedVariant) {
       showToast('Please select a variant', 'error');
@@ -67,10 +75,11 @@ export default function ProductDetail() {
   };
 
   const handleTryOn = () => {
-    if (!isLoggedIn) {
-      navigate('/login', { state: { from: { pathname: `/product/${id}` } } });
+    if (!selectedVariant) {
+      showToast('Please select a variant', 'error');
       return;
     }
+
     navigate('/try-on', { state: { product, variant: selectedVariant } });
   };
 
@@ -113,7 +122,7 @@ export default function ProductDetail() {
         {/* Right: Details */}
         <div className="product-detail-info">
           <div className="product-detail-header">
-            <div className="product-detail-category">{product.category?.name || 'Fashion'}</div>
+            <div className="product-detail-category">{product.category || 'Fashion'}</div>
             <h1 className="product-detail-title">{product.name}</h1>
             {product.brand && <p className="product-detail-brand">Brand: {product.brand}</p>}
           </div>
@@ -139,8 +148,8 @@ export default function ProductDetail() {
                       Rs {parseFloat(variant.price || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </div>
                     <div className="variant-stock">
-                      {variant.stock > 0 ? (
-                        <span className="stock-available">In Stock ({variant.stock})</span>
+                     {variant.stockQuantity > 0 ? (
+                        <span className="stock-available">In Stock ({variant.stockQuantity})</span>
                       ) : (
                         <span className="stock-unavailable">Out of Stock</span>
                       )}
@@ -166,7 +175,7 @@ export default function ProductDetail() {
                 <span className="qty-display">{quantity}</span>
                 <button
                   onClick={() => setQuantity(Math.min(10, quantity + 1))}
-                  disabled={quantity >= 10 || !selectedVariant || selectedVariant.stock === 0}
+                  disabled={quantity >= 10 || !selectedVariant || selectedVariant.stockQuantity === 0}
                   className="qty-btn"
                 >+</button>
               </div>
@@ -187,17 +196,18 @@ export default function ProductDetail() {
           <div className="product-detail-actions">
             <button
               onClick={handleAddToCart}
-              disabled={!selectedVariant || addingToCart || selectedVariant.stock === 0}
+              disabled={!selectedVariant || addingToCart || selectedVariant.stockQuantity === 0}
               className="btn-add-to-cart-large"
             >
-              {addingToCart ? 'Adding...' : selectedVariant?.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+              {addingToCart ? 'Adding...' : selectedVariant?.stockQuantity === 0 ? 'Out of Stock' : 'Add to Cart'}
             </button>
             <button
               onClick={handleTryOn}
-              disabled={!selectedVariant || selectedVariant.stock === 0}
+              disabled={!selectedVariant || selectedVariant.stockQuantity === 0}
               className="btn-try-on"
+              type="button"
             >
-              👔 Try On Virtual
+              Try On Virtual
             </button>
           </div>
 

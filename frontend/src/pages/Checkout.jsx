@@ -2,10 +2,11 @@ import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CartContext } from '../context/CartContext';
 import { AuthContext } from '../context/AuthContext';
+import { orderAPI } from '../services/api';
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const { cart, getTotalAmount } = useContext(CartContext);
+  const { cart, getTotalAmount, clearCart } = useContext(CartContext);
   const { user } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -48,32 +49,51 @@ export default function Checkout() {
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  const newErrors = validateForm();
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    return;
+  }
 
-    setLoading(true);
-    // Simulate order placement
-    setTimeout(() => {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const shippingAddress = `${formData.address}, ${formData.city} ${formData.postalCode}`;
+    const orderPayload = {
+      shippingAddress,
+      orderItems: items.map(item => ({
+        variantId: item.variantId,
+        productId: item.productId,
+        quantity: item.quantity,
+      }))
+    };
+
+    const response = await orderAPI.create(orderPayload);
+    const data = response.data?.data || response.data;
+
+    if (response.status >= 200 && response.status < 300) {
+      await clearCart();
       navigate('/order-confirmation', {
         state: {
           orderData: {
-            orderNumber: `ORD-${Date.now()}`,
+            orderNumber: `ORD-${data.id || Date.now()}`,
             items,
             totalAmount: getTotalAmount(),
-            shippingAddress: `${formData.address}, ${formData.city} ${formData.postalCode}`,
-            paymentMethod: formData.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Card',
+            shippingAddress,
+            paymentMethod: 'Cash on Delivery',
             date: new Date().toLocaleDateString(),
           }
         }
       });
-    }, 1500);
-  };
+    }
+  } catch (err) {
+    console.error('Order error:', err);
+    setErrors({ submit: err.response?.data?.message || 'Failed to place order. Please try again.' });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="checkout-container">
@@ -222,16 +242,6 @@ export default function Checkout() {
                     onChange={handleChange}
                   />
                   <span className="payment-label">💵 Cash on Delivery</span>
-                </label>
-                <label className="payment-option">
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="card"
-                    checked={formData.paymentMethod === 'card'}
-                    onChange={handleChange}
-                  />
-                  <span className="payment-label">💳 Debit/Credit Card</span>
                 </label>
               </div>
             </div>
