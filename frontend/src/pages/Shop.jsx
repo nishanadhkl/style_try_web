@@ -22,45 +22,42 @@ export default function Shop() {
   const [error, setError] = useState(null);
   const [addingId, setAddingId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState({ totalPages: 1, totalElements: 0, first: true, last: true });
 
   const { addToCart } = useContext(CartContext);
   const { isLoggedIn } = useContext(AuthContext);
 
   useEffect(() => {
+    setPage(0);
+  }, [category, searchQuery]);
+
+  useEffect(() => {
     loadProducts();
-  }, [category]);
+  }, [category, searchQuery, page]);
 
 const loadProducts = async () => {
   setLoading(true);
   setError(null);
   try {
-    let response;
-    if (category === 'sale') {
-      response = await productAPI.getSaleProducts();
-    } else if (category === 'new') {
-      response = await productAPI.getNewArrivals();
-    } else {
-      response = await productAPI.getAll();
-    }
-
-    let data = response.data?.data || response.data || [];
-    if (!Array.isArray(data)) data = [];
-
-    if (category && category !== 'sale' && category !== 'new') {
-      data = data.filter(p =>
-        p.category?.toLowerCase() === category.toLowerCase()
-      );
-    }
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      data = data.filter(p =>
-        p.name?.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q)
-      );
-    }
-
+    const params = {
+      page,
+      size: 12,
+      q: searchQuery || undefined,
+      category: category && category !== 'sale' && category !== 'new' ? category : undefined,
+      sale: category === 'sale' ? true : undefined,
+      newest: category === 'new' ? true : undefined,
+    };
+    const response = await productAPI.getAll(params);
+    const payload = response.data?.data || response.data || {};
+    const data = Array.isArray(payload) ? payload : payload.content || [];
     setProducts(data);
+    setPageInfo({
+      totalPages: payload.totalPages || 1,
+      totalElements: payload.totalElements ?? data.length,
+      first: payload.first ?? true,
+      last: payload.last ?? true,
+    });
   } catch (err) {
     console.error('Error loading products:', err);
     setError('Failed to load products. Please try again.');
@@ -110,8 +107,8 @@ const loadProducts = async () => {
 
       <div className="shop-header">
         <h1 className="shop-title">{pageTitle}</h1>
-        {products.length > 0 && (
-          <p className="shop-count">{products.length} product{products.length !== 1 ? 's' : ''}</p>
+        {pageInfo.totalElements > 0 && (
+          <p className="shop-count">{pageInfo.totalElements} product{pageInfo.totalElements !== 1 ? 's' : ''}</p>
         )}
       </div>
 
@@ -138,9 +135,10 @@ const loadProducts = async () => {
           </div>
         </div>
       ) : (
-        <div className="products-grid">
-          {products.map((product) => (
-            <div
+        <>
+          <div className="products-grid">
+            {products.map((product) => (
+              <div
               key={product.id}
               className="product-card"
               onClick={() => navigate(`/product/${product.id}`)}
@@ -220,9 +218,21 @@ const loadProducts = async () => {
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '2rem' }}>
+            <button className="btn-secondary pagination-arrow-button" aria-label="Previous page" disabled={pageInfo.first} onClick={() => setPage((value) => Math.max(0, value - 1))}>
+              &lt;
+            </button>
+            <span style={{ fontWeight: '700', color: '#4f46e5' }}>
+              Page {page + 1} of {pageInfo.totalPages}
+            </span>
+            <button className="btn-secondary pagination-arrow-button" aria-label="Next page" disabled={pageInfo.last} onClick={() => setPage((value) => value + 1)}>
+              &gt;
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

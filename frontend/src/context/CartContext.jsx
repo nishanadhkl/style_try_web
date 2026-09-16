@@ -65,8 +65,9 @@ useEffect(() => {
       return { success: true };
     } catch (err) {
       console.error('Error updating cart:', err);
-      setError('Failed to update item');
-      return { success: false };
+      const message = err.response?.data?.message || 'Failed to update item';
+      setError(message);
+      return { success: false, message };
     }
   };
 

@@ -1,9 +1,17 @@
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function OrderConfirmation() {
   const location = useLocation();
   const navigate = useNavigate();
-  const orderData = location.state?.orderData;
+  const storedOrderData = sessionStorage.getItem('pendingOrderConfirmation');
+  const orderData = location.state?.orderData || (storedOrderData ? JSON.parse(storedOrderData) : null);
+
+  useEffect(() => {
+    if (storedOrderData) {
+      sessionStorage.removeItem('pendingOrderConfirmation');
+    }
+  }, [storedOrderData]);
 
   if (!orderData) {
     return (

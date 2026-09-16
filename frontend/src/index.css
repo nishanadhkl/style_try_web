@@ -1778,6 +1778,15 @@ tr:hover { background: var(--clr-lighter); }
 .status-btn:hover { background: var(--clr-border); }
 .status-btn--active { background: var(--clr-primary); color: white; border-color: var(--clr-primary); }
 
+.pagination-arrow-button {
+  min-width: 48px;
+  min-height: 42px;
+  padding: 0.45rem 0.9rem !important;
+  font-size: 1.45rem !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+}
+
 /* ===========================
    RESPONSIVE
    =========================== */

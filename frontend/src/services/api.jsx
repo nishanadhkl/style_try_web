@@ -47,21 +47,50 @@ API.interceptors.response.use(
     return response;
   },
   (error) => {
+    const requestUrl = error.config?.url || "";
+    const adminOnlyPaths = ["/api/admin", "/api/orders/admin", "/api/users"];
+    const isAdminRoute = adminOnlyPaths.some((path) => requestUrl.startsWith(path));
+    const isAdminProductWrite =
+      ["/api/products", "/api/variants"].some((path) => requestUrl.startsWith(path)) &&
+      ["post", "put", "delete"].includes(error.config?.method?.toLowerCase());
+    const isCustomerProtectedRoute =
+      ["/api/cart", "/api/orders", "/api/payments"].some((path) => requestUrl.startsWith(path)) &&
+      !isAdminRoute;
+
     if (error.response?.status === 401) {
       // Unauthorized - clear tokens and redirect
-      localStorage.removeItem("adminToken");
-      localStorage.removeItem("userToken");
-      localStorage.removeItem("admin");
+      if (isAdminRoute || isAdminProductWrite) {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("admin");
+      } else {
+        localStorage.removeItem("userToken");
+        localStorage.removeItem("user");
+      }
 
       // Redirect to login if not already there
       if (window.location.pathname !== "/admin/login" && window.location.pathname !== "/login") {
-        window.location.href = window.location.pathname.startsWith("/admin") ? "/admin/login" : "/login";
+        window.location.href = (isAdminRoute || isAdminProductWrite || window.location.pathname.startsWith("/admin"))
+          ? "/admin/login"
+          : "/login";
       }
     }
 
     if (error.response?.status === 403) {
-      // Forbidden - show message
       console.error("Access forbidden:", error.response.data);
+
+      if (isAdminRoute || isAdminProductWrite) {
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("admin");
+        if (window.location.pathname !== "/admin/login") {
+          window.location.href = "/admin/login";
+        }
+      } else if (isCustomerProtectedRoute) {
+        localStorage.removeItem("userToken");
+        localStorage.removeItem("user");
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
+      }
     }
 
     if (error.response?.status >= 500) {
@@ -75,7 +104,7 @@ API.interceptors.response.use(
 
 // API endpoints for products
 export const productAPI = {
-  getAll: () => API.get("/api/products"),
+  getAll: (params) => API.get("/api/products", { params }),
   getById: (id) => API.get(`/api/products/${id}`),
   create: (productData) => API.post("/api/products", productData),
   update: (id, productData) => API.put(`/api/products/${id}`, productData),
@@ -107,9 +136,10 @@ export const categoryAPI = {
 export const adminAPI = {
   login: (credentials) => API.post("/api/auth/login", credentials),
   getDashboardStats: () => API.get("/api/admin/dashboard/stats"),
-  getAllOrders: () => API.get("/api/orders/admin/all"),
+  getAllOrders: (params) => API.get("/api/orders/admin/all", { params }),
   updateOrderStatus: (orderId, status) => API.put(`/api/orders/admin/${orderId}/status`, null, { params: { status } }),
-  getAllUsers: () => API.get("/api/users"),
+  getAllUsers: (params) => API.get("/api/users", { params }),
+  deleteUser: (userId) => API.delete(`/api/users/${userId}`),
 };
 
 // API endpoints for user authentication
@@ -130,7 +160,7 @@ export const authAPI = {
 // API endpoints for orders
 export const orderAPI = {
   // Get user's orders
-  getUserOrders: () => API.get("/api/orders"),
+  getUserOrders: (params) => API.get("/api/orders", { params }),
 
   // Get order by ID
   getById: (id) => API.get(`/api/orders/${id}`),
@@ -140,6 +170,10 @@ export const orderAPI = {
 
   // Cancel order
   cancel: (orderId) => API.put(`/api/orders/${orderId}/cancel`),
+};
+
+export const paymentAPI = {
+  initiateEsewa: (paymentData) => API.post("/api/payments/esewa/initiate", paymentData),
 };
 
 // API endpoints for product variants

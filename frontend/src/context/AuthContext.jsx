@@ -57,10 +57,14 @@ export function AuthProvider({ children }) {
       }
       return { success: false, message: response?.data?.message || 'Registration failed' };
     } catch (error) {
+      const serverMessage = error.response?.data?.message || error.response?.data?.error;
       if (error.response?.status === 409) {
-        return { success: false, message: 'An account with this email already exists' };
+        return { success: false, message: serverMessage || 'User already exists with this email' };
       }
-      return { success: false, message: 'Registration failed. Please try again.' };
+      if (serverMessage?.toLowerCase().includes('email')) {
+        return { success: false, message: 'User already exists with this email' };
+      }
+      return { success: false, message: serverMessage || 'Registration failed. Please try again.' };
     }
   };
 
@@ -70,8 +74,10 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('userToken');
   };
 
+  const isLoggedIn = !!user && !!localStorage.getItem('userToken');
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, isLoggedIn: !!user }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, isLoggedIn }}>
       {children}
     </AuthContext.Provider>
   );

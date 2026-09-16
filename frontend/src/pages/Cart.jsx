@@ -5,7 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 
 export default function Cart() {
   const navigate = useNavigate();
-  const { cart, loading, updateItem, removeItem, clearCart, getTotalAmount } = useContext(CartContext);
+  const { cart, loading, error, updateItem, removeItem, clearCart, getTotalAmount } = useContext(CartContext);
   const { isLoggedIn } = useContext(AuthContext);
   const [updatingId, setUpdatingId] = useState(null);
 
@@ -64,6 +64,20 @@ export default function Cart() {
         <h1 className="cart-title">Shopping Cart</h1>
         <Link to="/shop" className="cart-continue-link">← Continue Shopping</Link>
       </div>
+
+      {error && (
+        <div style={{
+          marginBottom: '1rem',
+          padding: '0.9rem 1rem',
+          border: '1px solid #fecaca',
+          borderRadius: '0.6rem',
+          background: '#fef2f2',
+          color: '#b91c1c',
+          fontWeight: '700',
+        }}>
+          {error}
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="cart-empty-page">

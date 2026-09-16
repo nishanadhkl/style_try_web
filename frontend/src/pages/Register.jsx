@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
@@ -12,8 +12,31 @@ export default function Register() {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
-  const { register } = useContext(AuthContext);
+  const { register, isLoggedIn, loading: authLoading } = useContext(AuthContext);
+  const passwordPattern = /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,}$/;
+
+  useEffect(() => {
+    if (!authLoading && isLoggedIn) {
+      navigate('/', { replace: true });
+    }
+  }, [authLoading, isLoggedIn, navigate]);
+
+  const renderEyeIcon = (isVisible) => isVisible ? (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C7 20 2.73 16.89 1 12a18.45 18.45 0 0 1 5.06-6.06" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c5 0 9.27 3.11 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M14.12 14.12a3 3 0 0 1-4.24-4.24" />
+      <path d="M1 1l22 22" />
+    </svg>
+  ) : (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
 
   const validateForm = () => {
     const newErrors = {};
@@ -31,6 +54,8 @@ export default function Register() {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
+    } else if (!passwordPattern.test(formData.password)) {
+      newErrors.password = 'Password must contain one uppercase letter, one digit, and one special character';
     }
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
@@ -129,31 +154,73 @@ export default function Register() {
 
             <div className="form-group">
               <label htmlFor="password" className="form-label">Password</label>
-              <input
-                id="password"
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Min. 6 characters"
-                className={`form-input ${errors.password ? 'form-input--error' : ''}`}
-                autoComplete="new-password"
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Min. 6 chars, A-Z, 0-9, symbol"
+                  className={`form-input ${errors.password ? 'form-input--error' : ''}`}
+                  autoComplete="new-password"
+                  style={{ paddingRight: '3rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{
+                    position: 'absolute',
+                    right: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    color: '#4f46e5',
+                    lineHeight: 0,
+                  }}
+                >
+                  {renderEyeIcon(showPassword)}
+                </button>
+              </div>
               {errors.password && <span className="form-error">{errors.password}</span>}
             </div>
 
             <div className="form-group">
               <label htmlFor="confirmPassword" className="form-label">Confirm Password</label>
-              <input
-                id="confirmPassword"
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className={`form-input ${errors.confirmPassword ? 'form-input--error' : ''}`}
-                autoComplete="new-password"
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Confirm your password"
+                  className={`form-input ${errors.confirmPassword ? 'form-input--error' : ''}`}
+                  autoComplete="new-password"
+                  style={{ paddingRight: '3rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((value) => !value)}
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  style={{
+                    position: 'absolute',
+                    right: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    color: '#4f46e5',
+                    lineHeight: 0,
+                  }}
+                >
+                  {renderEyeIcon(showConfirmPassword)}
+                </button>
+              </div>
               {errors.confirmPassword && <span className="form-error">{errors.confirmPassword}</span>}
             </div>
 
@@ -176,3 +243,4 @@ export default function Register() {
     </div>
   );
 }
+

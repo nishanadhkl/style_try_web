@@ -7,6 +7,9 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState({ totalPages: 1, totalElements: 0, first: true, last: true });
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [toast, setToast] = useState(null);
@@ -18,14 +21,21 @@ export default function AdminOrders() {
 
   useEffect(() => {
     loadOrders();
-  }, []);
+  }, [page]);
 
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getAllOrders();
-      const data = response.data?.data || response.data || [];
-      setOrders(Array.isArray(data) ? data : []);
+      const response = await adminAPI.getAllOrders({ page, size: 10 });
+      const payload = response.data?.data || response.data || {};
+      const data = Array.isArray(payload) ? payload : payload.content || [];
+      setOrders(data);
+      setPageInfo({
+        totalPages: payload.totalPages || 1,
+        totalElements: payload.totalElements ?? data.length,
+        first: payload.first ?? true,
+        last: payload.last ?? true,
+      });
     } catch (err) {
       console.error('Error loading orders:', err);
       showToast('Failed to load orders', 'error');
@@ -36,6 +46,12 @@ export default function AdminOrders() {
   };
 
   const handleStatusChange = async (orderId, newStatus) => {
+    const order = orders.find((item) => item.id === orderId);
+    if (order?.status?.toUpperCase() === 'DELIVERED' && newStatus !== 'DELIVERED') {
+      showToast('Delivered orders cannot be changed to another status', 'error');
+      return;
+    }
+
     try {
       setUpdating(true);
       await adminAPI.updateOrderStatus(orderId, newStatus);
@@ -45,7 +61,8 @@ export default function AdminOrders() {
       }
       showToast('Order status updated');
     } catch (err) {
-      showToast('Failed to update status', 'error');
+      const message = err.response?.data?.message || err.message || 'Failed to update status';
+      showToast(message, 'error');
     } finally {
       setUpdating(false);
     }
@@ -65,9 +82,18 @@ export default function AdminOrders() {
     }
   };
 
-  const filteredOrders = statusFilter === 'all'
-    ? orders
-    : orders.filter(o => o.status?.toUpperCase() === statusFilter.toUpperCase());
+  const filteredOrders = orders
+    .filter((order) => statusFilter === 'all' || order.status?.toUpperCase() === statusFilter.toUpperCase())
+    .filter((order) => {
+      const value = searchTerm.toLowerCase();
+      return [
+        `ORD-${order.id}`,
+        order.customerName,
+        order.customerEmail,
+        order.shippingAddress,
+        order.status,
+      ].some((field) => String(field || '').toLowerCase().includes(value));
+    });
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
@@ -106,22 +132,32 @@ export default function AdminOrders() {
       </div>
 
       <main className="admin-main">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
           <h2 className="admin-section-title" style={{ margin: 0 }}>
-            All Orders ({orders.length})
+            All Orders ({pageInfo.totalElements})
           </h2>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="admin-form-input"
-            style={{ width: 'auto', minWidth: '180px' }}
-          >
-            <option value="all">All Orders ({orders.length})</option>
-            <option value="PENDING">Pending ({orders.filter(o => o.status?.toUpperCase() === 'PENDING').length})</option>
-            <option value="SHIPPED">Shipped ({orders.filter(o => o.status?.toUpperCase() === 'SHIPPED').length})</option>
-            <option value="DELIVERED">Delivered ({orders.filter(o => o.status?.toUpperCase() === 'DELIVERED').length})</option>
-            <option value="CANCELLED">Cancelled ({orders.filter(o => o.status?.toUpperCase() === 'CANCELLED').length})</option>
-          </select>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search orders..."
+              className="admin-form-input"
+              style={{ width: '240px' }}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="admin-form-input"
+              style={{ width: 'auto', minWidth: '180px' }}
+            >
+              <option value="all">All Orders ({orders.length})</option>
+              <option value="PENDING">Pending ({orders.filter(o => o.status?.toUpperCase() === 'PENDING').length})</option>
+              <option value="SHIPPED">Shipped ({orders.filter(o => o.status?.toUpperCase() === 'SHIPPED').length})</option>
+              <option value="DELIVERED">Delivered ({orders.filter(o => o.status?.toUpperCase() === 'DELIVERED').length})</option>
+              <option value="CANCELLED">Cancelled ({orders.filter(o => o.status?.toUpperCase() === 'CANCELLED').length})</option>
+            </select>
+          </div>
         </div>
 
         {loading ? (
@@ -178,6 +214,15 @@ export default function AdminOrders() {
                   ))}
                 </tbody>
               </table>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+                <button className="admin-form-cancel-button pagination-arrow-button" aria-label="Previous page" disabled={pageInfo.first} onClick={() => setPage((value) => Math.max(0, value - 1))}>
+                  &lt;
+                </button>
+                <span style={{ fontWeight: '700', color: '#4f46e5' }}>Page {page + 1} of {pageInfo.totalPages}</span>
+                <button className="admin-form-cancel-button pagination-arrow-button" aria-label="Next page" disabled={pageInfo.last} onClick={() => setPage((value) => value + 1)}>
+                  &gt;
+                </button>
+              </div>
             </div>
 
             {/* Order Detail Panel */}
@@ -226,17 +271,37 @@ export default function AdminOrders() {
 
                 <div>
                   <p style={{ fontWeight: '600', marginBottom: '0.75rem', fontSize: '0.9rem' }}>Update Status:</p>
+                  {selectedOrder.status?.toUpperCase() === 'DELIVERED' && (
+                    <p style={{
+                      margin: '0 0 0.75rem',
+                      padding: '0.75rem',
+                      borderRadius: '0.5rem',
+                      background: '#dcfce7',
+                      color: '#166534',
+                      fontWeight: '600',
+                      fontSize: '0.85rem'
+                    }}>
+                      This order is delivered and cannot be changed.
+                    </p>
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                     {['PENDING', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map((status) => (
                       <button
                         key={status}
                         onClick={() => handleStatusChange(selectedOrder.id, status)}
-                        disabled={updating || selectedOrder.status?.toUpperCase() === status}
+                        disabled={
+                          updating
+                          || selectedOrder.status?.toUpperCase() === status
+                          || selectedOrder.status?.toUpperCase() === 'DELIVERED'
+                        }
                         style={{
                           padding: '0.5rem',
                           border: '2px solid',
                           borderRadius: '0.5rem',
-                          cursor: selectedOrder.status?.toUpperCase() === status ? 'default' : 'pointer',
+                          cursor: (
+                            selectedOrder.status?.toUpperCase() === status
+                            || selectedOrder.status?.toUpperCase() === 'DELIVERED'
+                          ) ? 'not-allowed' : 'pointer',
                           fontWeight: '600',
                           fontSize: '0.8rem',
                           ...(selectedOrder.status?.toUpperCase() === status

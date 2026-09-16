@@ -23,6 +23,9 @@ export default function AdminProducts() {
   const [editingVariantId, setEditingVariantId] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState({ totalPages: 1, totalElements: 0, first: true, last: true });
   const [deleteVariantConfirm, setDeleteVariantConfirm] = useState({ open: false, variantId: null });
   const [formData, setFormData] = useState({
     name: '', description: '', price: '', category: '', imageUrl: '',
@@ -47,13 +50,25 @@ export default function AdminProducts() {
     return [];
   };
 
-  useEffect(() => { loadProducts(); }, []);
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm]);
+
+  useEffect(() => { loadProducts(); }, [page, searchTerm]);
 
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const response = await productAPI.getAll();
-      setProducts(getResponseList(response.data));
+      const response = await productAPI.getAll({ page, size: 10, q: searchTerm || undefined });
+      const payload = response.data?.data || response.data || {};
+      const data = Array.isArray(payload) ? payload : payload.content || [];
+      setProducts(data);
+      setPageInfo({
+        totalPages: payload.totalPages || 1,
+        totalElements: payload.totalElements ?? data.length,
+        first: payload.first ?? true,
+        last: payload.last ?? true,
+      });
       setError(null);
     } catch (err) {
       setError('Failed to load products. Please try again.');
@@ -458,7 +473,17 @@ export default function AdminProducts() {
 
         {/* Products Table */}
         <section className="admin-products-section">
-          <h2 className="admin-section-title">All Products ({products.length})</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+            <h2 className="admin-section-title" style={{ margin: 0 }}>All Products ({pageInfo.totalElements})</h2>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search products..."
+              className="admin-form-input"
+              style={{ maxWidth: '320px' }}
+            />
+          </div>
           {loading && <p>Loading products...</p>}
           {error && <div><p>{error}</p><button onClick={loadProducts} className="admin-form-submit-button">Retry</button></div>}
           {!loading && !error && (
@@ -498,6 +523,15 @@ export default function AdminProducts() {
                   )}
                 </tbody>
               </table>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', padding: '1rem' }}>
+                <button className="admin-form-cancel-button pagination-arrow-button" aria-label="Previous page" disabled={pageInfo.first} onClick={() => setPage((value) => Math.max(0, value - 1))}>
+                  &lt;
+                </button>
+                <span style={{ fontWeight: '700', color: '#4f46e5' }}>Page {page + 1} of {pageInfo.totalPages}</span>
+                <button className="admin-form-cancel-button pagination-arrow-button" aria-label="Next page" disabled={pageInfo.last} onClick={() => setPage((value) => value + 1)}>
+                  &gt;
+                </button>
+              </div>
             </div>
           )}
         </section>
