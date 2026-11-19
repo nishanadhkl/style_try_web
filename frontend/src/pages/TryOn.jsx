@@ -29,10 +29,20 @@ const CANVAS_H = 600;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const getGarmentType = (product) => {
-  const text = `${product?.name || ''} ${product?.category || ''} ${product?.description || ''}`.toLowerCase();
-  if (/(dress|gown|kurti|saree)/.test(text)) return 'dress';
-  if (/(pant|pants|jean|jeans|trouser|trousers|bottom|shorts|jogger|cargo)/.test(text)) return 'bottom';
-  if (/(jacket|coat|blazer|cardigan)/.test(text)) return 'jacket';
+  const classify = (text) => {
+    if (/(dress|gown|kurti|saree|jumpsuit|romper|one[ -]?piece)/.test(text)) return 'dress';
+    if (/(skirt|skirts|lehenga)/.test(text)) return 'skirt';
+    if (/(palazzo|pant|pants|jean|jeans|trouser|trousers|bottom|shorts|jogger|cargo)/.test(text)) return 'bottom';
+    if (/(jacket|coat|blazer|cardigan)/.test(text)) return 'jacket';
+    if (/(shirt|tshirt|t-shirt|tee|top|blouse|cami|camisole|kurta|hoodie|sweater)/.test(text)) return 'top';
+    return null;
+  };
+
+  const primaryType = classify(`${product?.name || ''} ${product?.category || ''}`.toLowerCase());
+  if (primaryType) return primaryType;
+
+  const descriptionType = classify(`${product?.description || ''}`.toLowerCase());
+  if (descriptionType) return descriptionType;
   return 'top';
 };
 
@@ -60,10 +70,21 @@ const getFirstUsableVariant = (item) => {
     || null;
 };
 
-const isBottomProduct = (item) => getGarmentType(item) === 'bottom';
+const isBottomProduct = (item) => ['bottom', 'skirt'].includes(getGarmentType(item));
+const isSkirtProduct = (item) => getGarmentType(item) === 'skirt';
+const isLowerGarmentType = (type) => type === 'bottom' || type === 'skirt';
 const isTopProduct = (item) => {
   const type = getGarmentType(item);
-  return type === 'top' || type === 'jacket' || type === 'dress';
+  return type === 'top' || type === 'jacket';
+};
+
+const getRecommendationLabel = (type, selectedGender) => {
+  if (!type) return 'matching items';
+  if (type === 'skirt') return 'skirts';
+  if (type === 'bottom') {
+    return selectedGender === 'female' ? 'skirts or bottoms' : 'pants, jeans, or trousers';
+  }
+  return selectedGender === 'female' ? 'tops, t-shirts, or cami' : 'shirts, t-shirts, or jackets';
 };
 
 const colorFamily = (color) => {
@@ -224,8 +245,16 @@ export default function TryOn() {
   const clothingImage = variant?.imageUrl || product?.imageUrl || '';
   const bottomImage = selectedBottom?.variant?.imageUrl || selectedBottom?.product?.imageUrl || '';
   const selectedProductType = getGarmentType(product);
-  const recommendationType = selectedProductType === 'bottom' ? 'top' : 'bottom';
   const productGender = inferGender(product);
+  const recommendationGender = productGender === 'unisex' ? gender : productGender;
+  const recommendationType = selectedProductType === 'dress'
+    ? null
+    : ['bottom', 'skirt'].includes(selectedProductType)
+      ? 'top'
+      : recommendationGender === 'female'
+        ? 'skirt'
+        : 'bottom';
+  const recommendationLabel = getRecommendationLabel(recommendationType, recommendationGender);
   const genderOptions = productGender === 'male' || productGender === 'female'
     ? [[productGender, GENDER_CONFIGS[productGender]]]
     : Object.entries(GENDER_CONFIGS);
@@ -293,7 +322,7 @@ export default function TryOn() {
       ctx.restore();
     }
 
-    if (selectedProductType === 'bottom') {
+    if (isLowerGarmentType(selectedProductType)) {
       drawClothing(ctx, clothingImg);
       drawBottom(ctx, bottomImgRef.current);
     } else {
@@ -319,7 +348,7 @@ export default function TryOn() {
       const x = (CANVAS_W - img.width * scale) / 2;
       const y = (CANVAS_H - img.height * scale) / 2;
       ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-      if (selectedProductType === 'bottom') {
+      if (isLowerGarmentType(selectedProductType)) {
         drawClothing(ctx, clothingImgRef.current);
         drawBottom(ctx, bottomImgRef.current);
       } else {
@@ -348,11 +377,7 @@ export default function TryOn() {
     img.src = modelConfig.image;
   }, [mode, gender]);
 
-  // Load clothing image once
-  // NOTE: crossOrigin='anonymous' was removed here. It was silently causing
-  // the browser to fail loading product images that don't return an
-  // Access-Control-Allow-Origin header from the backend, which meant
-  // clothingImgRef.current never got set and drawClothing() had nothing to draw.
+ 
   useEffect(() => {
     if (!clothingImage) return;
     setClothingLoaded(false);
@@ -361,7 +386,7 @@ export default function TryOn() {
       clothingImgRef.current = img;
       setClothingLoaded(true);
       if (mode === 'model') {
-        const fit = selectedProductType === 'bottom'
+        const fit = isLowerGarmentType(selectedProductType)
           ? getBottomPreviewFit(gender)
           : getQuickPreviewFit(bodyShape, product, img, gender);
         setClothingPos(fit.pos);
@@ -378,8 +403,11 @@ export default function TryOn() {
   }, [clothingImage, mode, gender, product, selectedProductType]);
 
   useEffect(() => {
-    if (!product) {
+    if (!product || !recommendationType) {
       setRecommendations([]);
+      setSelectedBottom(null);
+      setActiveLayer('top');
+      setRecommendationLoading(false);
       return;
     }
 
@@ -391,7 +419,11 @@ export default function TryOn() {
         const allProducts = getResponseList(response.data);
         const candidateProducts = allProducts
           .filter((item) => item?.id !== product.id)
-          .filter((item) => recommendationType === 'bottom' ? isBottomProduct(item) : isTopProduct(item))
+          .filter((item) => recommendationType === 'skirt'
+            ? isSkirtProduct(item)
+            : recommendationType === 'bottom'
+              ? isBottomProduct(item)
+              : isTopProduct(item))
           .filter((item) => item?.active !== false);
 
         const enriched = await Promise.all(candidateProducts.map(async (item) => {
@@ -454,7 +486,7 @@ export default function TryOn() {
     img.onload = () => {
       bottomImgRef.current = img;
       setBottomLoaded(true);
-      const fit = recommendationType === 'bottom'
+      const fit = isLowerGarmentType(recommendationType)
         ? getBottomPreviewFit(gender)
         : getQuickPreviewFit(bodyShape, selectedBottom?.product, img, gender);
       setBottomPos(fit.pos);
@@ -729,11 +761,11 @@ export default function TryOn() {
 
   const resetClothing = () => {
     const fit = mode === 'model'
-      ? selectedProductType === 'bottom'
+      ? isLowerGarmentType(selectedProductType)
         ? getBottomPreviewFit(gender)
         : getQuickPreviewFit(bodyShape, product, clothingImgRef.current, gender)
       : { pos: { x: 100, y: 130 }, size: { w: 200, h: 220 } };
-    const bottomFit = recommendationType === 'bottom'
+    const bottomFit = isLowerGarmentType(recommendationType)
       ? getBottomPreviewFit(gender)
       : getQuickPreviewFit(bodyShape, selectedBottom?.product, bottomImgRef.current, gender);
 
@@ -939,7 +971,7 @@ export default function TryOn() {
               <div>
                 <h3 style={{ margin: 0, fontSize: '0.88rem', fontWeight: '800' }}>Complete the Look</h3>
                 <p style={{ margin: '0.15rem 0 0', color: '#64748b', fontSize: '0.75rem' }}>
-                  Recommended {recommendationType === 'bottom' ? 'bottoms' : 'tops'} for this item
+                  {recommendationType ? `Recommended ${recommendationLabel} for this item` : 'This item is already a complete outfit'}
                 </p>
               </div>
               {selectedBottom && (
@@ -964,13 +996,17 @@ export default function TryOn() {
               )}
             </div>
 
-            {recommendationLoading ? (
+            {!recommendationType ? (
               <p style={{ margin: 0, color: '#64748b', fontSize: '0.8rem' }}>
-                Loading matching {recommendationType === 'bottom' ? 'bottoms' : 'tops'}...
+                One-piece outfits do not need matching tops or bottoms.
+              </p>
+            ) : recommendationLoading ? (
+              <p style={{ margin: 0, color: '#64748b', fontSize: '0.8rem' }}>
+                Loading matching {recommendationLabel}...
               </p>
             ) : recommendations.length === 0 ? (
               <p style={{ margin: 0, color: '#64748b', fontSize: '0.8rem' }}>
-                Add {recommendationType === 'bottom' ? 'pants, jeans, or trousers' : 'shirts, tops, or jackets'} in Admin Products to show outfit suggestions.
+                Add {recommendationLabel} in Admin Products to show outfit suggestions.
               </p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.65rem' }}>

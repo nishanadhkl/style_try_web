@@ -21,12 +21,15 @@ API.interceptors.request.use(
     const isAdminProductWrite =
       ["/api/products", "/api/variants"].some((path) => config.url?.startsWith(path)) &&
       ["post", "put", "delete"].includes(config.method?.toLowerCase());
+    const isAdminProductRequest =
+      window.location.pathname.startsWith("/admin") &&
+      ["/api/products", "/api/variants"].some((path) => config.url?.startsWith(path));
 
     if (config.data instanceof FormData) {
       delete config.headers["Content-Type"];
     }
 
-    if ((isAdminRoute || isAdminProductWrite) && adminToken) {
+    if ((isAdminRoute || isAdminProductWrite || isAdminProductRequest) && adminToken) {
       config.headers.Authorization = `Bearer ${adminToken}`;
     } else if (userToken) {
       config.headers.Authorization = `Bearer ${userToken}`;

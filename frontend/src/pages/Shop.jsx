@@ -42,7 +42,7 @@ const loadProducts = async () => {
   try {
     const params = {
       page,
-      size: 12,
+      size: 4,
       q: searchQuery || undefined,
       category: category && category !== 'sale' && category !== 'new' ? category : undefined,
       sale: category === 'sale' ? true : undefined,

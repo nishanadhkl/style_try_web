@@ -157,7 +157,7 @@ export default function AdminProducts() {
       setDeleteConfirm({ open: false, productId: null, productName: '' });
       showToast('Product deleted successfully');
     } catch (err) {
-      showToast('Failed to delete product', 'error');
+      showToast(err.response?.data?.message || err.response?.data || 'Failed to delete product', 'error');
     }
   };
 
@@ -255,9 +255,9 @@ export default function AdminProducts() {
       await variantAPI.delete(deleteVariantConfirm.variantId);
       setDeleteVariantConfirm({ open: false, variantId: null });
       loadVariants(selectedProductId);
-      showToast('Variant deleted');
+      showToast('Variant deleted or deactivated');
     } catch (err) {
-      showToast('Failed to delete variant', 'error');
+      showToast(err.response?.data?.message || err.response?.data || 'Failed to delete variant', 'error');
     }
   };
 

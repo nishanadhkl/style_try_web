@@ -123,7 +123,7 @@ export default function AdminDashboard() {
         products.slice(0, 5).map((product) => ({
           id: product.id,
           type: 'product',
-          message: `${product.name} is listed in ${product.categoryName || 'Uncategorized'}`,
+          message: `${product.name} is listed in ${product.category || 'Uncategorized'}`,
           time: product.active ? 'Active' : 'Inactive',
         }))
       );
